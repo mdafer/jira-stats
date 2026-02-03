@@ -20,9 +20,10 @@ import MetricsCard from './MetricsCard';
 
 interface OverviewProps {
     metrics: Metrics;
+    onNavigateToSprint: (sprintName: string) => void;
 }
 
-const Overview: React.FC<OverviewProps> = ({ metrics }) => {
+const Overview: React.FC<OverviewProps> = ({ metrics, onNavigateToSprint }) => {
     return (
         <>
             <div className="metrics-grid">
@@ -56,7 +57,15 @@ const Overview: React.FC<OverviewProps> = ({ metrics }) => {
                     <h3>Points by Sprint</h3>
                     <div style={{ height: '300px', marginTop: '1.5rem' }}>
                         <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={metrics.sprintStats}>
+                            <BarChart 
+                                data={metrics.sprintStats}
+                                onClick={(data) => {
+                                    if (data && data.activeLabel) {
+                                        onNavigateToSprint(data.activeLabel);
+                                    }
+                                }}
+                                style={{ cursor: 'pointer' }}
+                            >
                                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
                                 <XAxis dataKey="name" stroke="#94a3b8" fontSize={12} />
                                 <YAxis stroke="#94a3b8" />

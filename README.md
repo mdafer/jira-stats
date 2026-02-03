@@ -1,73 +1,84 @@
-# React + TypeScript + Vite
+# Jira Dashboard
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A modern, high-performance dashboard for visualizing Jira data, built with React, TypeScript, and Vite.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **Overview**: High-level metrics including total tasks, completion rates, and cumulative effort.
+- **Sprint View**: Detailed breakdown of the current sprint's progress and velocity.
+- **Developer Table**: Performance metrics for individual developers, including total time spent and average task duration.
+- **Gantt Chart**: Visual timeline of issues and their dependencies.
+- **Issue Explorer**: Advanced filtering and searching of Jira issues with direct links to Jira.
+- **Idle Time View**: Identify bottlenecks and waiting periods in your workflow.
+- **Overtime View**: Track and analyze developer workload and potential burnout.
+- **Settings**: Configure Jira API credentials and dashboard preferences.
+- **Cache Management**: Local storage caching for improved performance and offline access.
 
-## React Compiler
+## Tech Stack
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- **Frontend**: React 19, TypeScript, Vite
+- **Styling**: Tailwind CSS
+- **Icons**: Lucide React
+- **Data Fetching**: Custom hooks with Jira REST API and CSV support
+- **State Management**: React Context and Hooks
+- **Charts**: Recharts / Custom SVG components
 
-## Expanding the ESLint configuration
+## Getting Started
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+### Prerequisites
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+- Node.js (v18 or higher)
+- Yarn (preferred)
+- Jira API Token and Instance URL (optional if using CSV)
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+### Installation
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+1. Clone the repository:
+
+   ```bash
+   git clone https://github.com/your-username/jira-dashboard.git
+   cd jira-dashboard
+   ```
+
+2. Install dependencies:
+
+   ```bash
+   yarn install
+   ```
+
+3. Create a `.env` file in the root directory and add your Jira credentials (see `.env.example`):
+   ```env
+   VITE_JIRA_URL=https://your-instance.atlassian.net
+   VITE_JIRA_EMAIL=your-email@example.com
+   VITE_JIRA_TOKEN=your-api-token
+   ```
+
+### Data Update (CSV Method)
+
+If you are using the Jira Data Extractor tool:
+
+1. Generate a new CSV using your extractor.
+2. Copy the resulting `.csv` file to `public/data.csv`.
+3. The dashboard will automatically reflect the new data on the next reload.
+
+### Development
+
+Start the development server:
+
+```bash
+yarn dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+The dashboard will be available at `http://localhost:5173`.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+### Building for Production
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+yarn build
 ```
+
+The production-ready files will be in the `dist` directory.
+
+## License
+
+MIT

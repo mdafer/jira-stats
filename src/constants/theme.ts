@@ -6,7 +6,6 @@ export const TABS = {
     SPRINTS: 'sprints',
     TASKS: 'tasks',
     IDLE_TIME: 'idle_time',
-    OVERTIME: 'overtime',
     SETTINGS: 'settings'
 } as const;
 

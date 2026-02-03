@@ -9,13 +9,24 @@ interface GanttChartProps {
     ganttDevFilter: string | null;
     setGanttDevFilter: (dev: string | null) => void;
     allDevs: string[];
+    workDays: number[];
 }
 
-const GanttChart: React.FC<GanttChartProps> = ({ tasks, sStart, sEnd, ganttDevFilter, setGanttDevFilter, allDevs }) => {
+const GanttChart: React.FC<GanttChartProps> = ({ tasks, sStart, sEnd, ganttDevFilter, setGanttDevFilter, allDevs, workDays }) => {
     const minTime = sStart;
     const maxTime = sEnd;
     const totalSpan = maxTime - minTime;
     const formatDate = (ts: number) => new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+
+    const sprintDays: number[] = [];
+    const d = new Date(minTime);
+    d.setHours(0, 0, 0, 0);
+    const endDate = new Date(maxTime);
+    endDate.setHours(23, 59, 59, 999);
+    while (d.getTime() <= endDate.getTime()) {
+        if (workDays.includes(d.getDay())) sprintDays.push(d.getTime());
+        d.setDate(d.getDate() + 1);
+    }
 
     return (
         <div className="gantt-section">
@@ -46,17 +57,42 @@ const GanttChart: React.FC<GanttChartProps> = ({ tasks, sStart, sEnd, ganttDevFi
             <div className="gantt-container" style={{ padding: '1.5rem', background: '#0f172a', borderRadius: '12px', border: '1px solid var(--border)', position: 'relative' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: '1rem', marginBottom: '1.5rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>
                     <div></div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: 'var(--text-muted)', position: 'relative', height: '1.5rem' }}>
-                        <span style={{ position: 'absolute', left: '0' }}>{formatDate(minTime)}</span>
-                        <span style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)' }}>{formatDate(minTime + totalSpan / 2)}</span>
-                        <span style={{ position: 'absolute', right: '0' }}>{formatDate(maxTime)}</span>
+                    <div style={{ position: 'relative', height: '1.5rem', minHeight: '1.5rem' }}>
+                        {sprintDays.map(dayStart => {
+                            const left = ((dayStart - minTime) / totalSpan) * 100;
+                            return (
+                                <span
+                                    key={dayStart}
+                                    style={{
+                                        position: 'absolute',
+                                        left: `${left}%`,
+                                        transform: 'translateX(-50%)',
+                                        fontSize: '0.65rem',
+                                        color: 'var(--text-muted)',
+                                        whiteSpace: 'nowrap'
+                                    }}
+                                    title={formatDate(dayStart)}
+                                >
+                                    {formatDate(dayStart)}
+                                </span>
+                            );
+                        })}
                     </div>
                 </div>
 
                 <div style={{ position: 'relative' }}>
-                    <div style={{ position: 'absolute', left: '300px', right: '0', top: '0', bottom: '0', pointerEvents: 'none', display: 'flex', justifyContent: 'space-between', zIndex: 0 }}>
-                        {[0, 1, 2, 3, 4].map(i => (
-                            <div key={i} style={{ borderLeft: '1px dashed rgba(255,255,255,0.05)', height: '100%' }}></div>
+                    <div style={{ position: 'absolute', left: '300px', right: '0', top: '0', bottom: '0', pointerEvents: 'none', zIndex: 0 }}>
+                        {sprintDays.map(dayStart => (
+                            <div
+                                key={dayStart}
+                                style={{
+                                    position: 'absolute',
+                                    left: `${((dayStart - minTime) / totalSpan) * 100}%`,
+                                    width: 0,
+                                    borderLeft: '1px solid rgba(255,255,255,0.08)',
+                                    height: '100%'
+                                }}
+                            />
                         ))}
                     </div>
 
@@ -116,7 +152,7 @@ const GanttChart: React.FC<GanttChartProps> = ({ tasks, sStart, sEnd, ganttDevFi
                                                         height: '100%',
                                                         borderRight: '1px solid rgba(0,0,0,0.1)'
                                                     }}
-                                                    title={`${stage.status}: ${round1dec(stage.duration)} days (${stage.assignee})\n${new Date(stage.start).toLocaleDateString()} - ${new Date(stage.end).toLocaleDateString()}`}
+                                                    title={`${stage.status}: ${round1dec(stage.duration)} days (${stage.assignee})\n${new Date(stage.start).toLocaleDateString()} - ${new Date(stage.end).toLocaleDateString()}\nStory points: ${task.StoryPoints ?? '-'}`}
                                                 />
                                             );
                                         });

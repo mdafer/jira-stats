@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Calendar, User, ArrowRight } from 'lucide-react';
 import type { JiraTask } from '../types/jira';
+import { formatIdleDayRanges } from '../utils/dateUtils';
 
 interface IdleTimeViewProps {
     data: JiraTask[];
@@ -42,100 +43,75 @@ const IdleTimeView: React.FC<IdleTimeViewProps> = ({ data, onNavigateToSprint, w
         const sprintTasks = data.filter(t => t.Sprint === selectedSprint);
         if (sprintTasks.length === 0) return [];
 
-        // Determine Sprint Range based on task limits in lieu of explicit Sprint Start/End dates
-        let minDate = new Date(8640000000000000);
-        let maxDate = new Date(-8640000000000000);
-        let hasDates = false;
-
-        sprintTasks.forEach(task => {
-            if (task.SprintStart) {
-                const date = new Date(task.SprintStart);
-                if (date < minDate) minDate = date;
-                hasDates = true;
-            }
-            if (task.SprintEnd) {
-                const date = new Date(task.SprintEnd);
-                if (date > maxDate) maxDate = date;
-                hasDates = true;
-            }
-        });
-
-        // Fallback to task updates if sprint dates missing, or today if active
-        // Ideally we should trust the SprintStart/End if populated.
-        // If not populated (e.g. kanban board without strict sprints), this view might be tricky.
-        if (!hasDates) {
-            return [];
+        // Same sprint range as SprintView: SprintStart/SprintEnd if present, else min/max of stage dates
+        let sStart = Infinity;
+        let sEnd = -Infinity;
+        const sprintDatesTask = sprintTasks.find(t => t.SprintStart && (t.SprintEnd || t.Sprint));
+        if (sprintDatesTask?.SprintStart) {
+            sStart = new Date(sprintDatesTask.SprintStart).getTime();
+            sEnd = new Date(sprintDatesTask.SprintEnd || new Date()).getTime();
+        } else {
+            sprintTasks.forEach(t => {
+                t.Stages.forEach(s => {
+                    const st = new Date(s.start).getTime();
+                    const en = new Date(s.end).getTime();
+                    if (st < sStart) sStart = st;
+                    if (en > sEnd) sEnd = en;
+                });
+            });
         }
+        if (sStart === Infinity || sEnd === -Infinity) return [];
 
-        // Normalize dates to midnight to ignore time components for "day" comparison
-        const startDate = new Date(minDate);
+        const startDate = new Date(sStart);
         startDate.setHours(0, 0, 0, 0);
-
-        const endDate = new Date(maxDate);
+        const endDate = new Date(sEnd);
         endDate.setHours(23, 59, 59, 999);
 
-        // Generate array of calendar days in sprint
+        // Only work days (same as SprintView)
         const days: Date[] = [];
         const current = new Date(startDate);
         while (current <= endDate) {
-            // Check if current day is a work day
-            if (workDays.includes(current.getDay())) {
-                days.push(new Date(current));
-            }
+            if (workDays.includes(current.getDay())) days.push(new Date(current));
             current.setDate(current.getDate() + 1);
         }
 
-        const developers = Array.from(new Set(sprintTasks.map(t => t.AssigneeName).filter(Boolean)));
+        // Same developer set as SprintView: task assignee or any stage assignee
+        const devNames: string[] = [];
+        sprintTasks.forEach(t => {
+            if (t.AssigneeName) devNames.push(t.AssigneeName);
+            t.Stages.forEach(s => { if (s.assignee) devNames.push(s.assignee); });
+        });
+        const developers = Array.from(new Set(devNames));
 
-        // Define statuses that count as "Active Work"
-        const ACTIVE_STATUS_KEYWORDS = ['In Progress', 'In Development'];
+        const IN_PROGRESS_KEYWORDS = ['in progress', 'in development'];
 
         return developers.map(dev => {
-            const devTasks = sprintTasks.filter(t => t.AssigneeName === dev);
+            const devTasks = sprintTasks.filter(t => t.AssigneeName === dev || t.Stages.some(s => s.assignee === dev));
             let activeDaysCount = 0;
             const idleDates: Date[] = [];
 
             days.forEach(day => {
-                // Check if day is a weekend (Saturday=6, Sunday=0) for cleaner "Work" stats?
-                // User said "idle days are dates with no tasks in progress". Doesn't explicitly exclude weekends.
-                // We'll trust the strict definition first.
-
                 const dayStart = new Date(day);
                 dayStart.setHours(0, 0, 0, 0);
                 const dayEnd = new Date(day);
                 dayEnd.setHours(23, 59, 59, 999);
-
                 let isWorking = false;
-
                 for (const task of devTasks) {
-                    if (task.Stages) {
-                        for (const stage of task.Stages) {
-                            // 1. Strict status check
-                            const s = stage.status.toLowerCase();
-                            const isActive = ACTIVE_STATUS_KEYWORDS.some(k => s.includes(k.toLowerCase()));
-
-                            if (isActive) {
-                                // 2. Check date overlap with day interval
-                                const stageStart = new Date(stage.start);
-                                const stageEnd = stage.end ? new Date(stage.end) : new Date(); // If null, assume ongoing
-
-                                // Intersection check: [dayStart, dayEnd] overlaps [stageStart, stageEnd]
-                                // Overlap condition: StartA <= EndB && EndA >= StartB
-                                if (dayStart <= stageEnd && dayEnd >= stageStart) {
-                                    isWorking = true;
-                                    break;
-                                }
+                    for (const stage of task.Stages) {
+                        const s = stage.status.toLowerCase();
+                        if (IN_PROGRESS_KEYWORDS.some(k => s.includes(k))) {
+                            const stageStart = new Date(stage.start);
+                            const stageEnd = stage.end ? new Date(stage.end) : new Date();
+                            if (dayStart <= stageEnd && dayEnd >= stageStart) {
+                                isWorking = true;
+                                break;
                             }
                         }
                     }
                     if (isWorking) break;
                 }
-
-                if (isWorking) {
-                    activeDaysCount++;
-                } else {
-                    idleDates.push(day);
-                }
+                if (isWorking) activeDaysCount++;
+                else idleDates.push(day);
             });
 
             return {
@@ -143,7 +119,7 @@ const IdleTimeView: React.FC<IdleTimeViewProps> = ({ data, onNavigateToSprint, w
                 idleDays: idleDates.length,
                 totalDays: days.length,
                 activeDays: activeDaysCount,
-                idleDates // We could expose this to UI if needed
+                idleDates
             };
         }).sort((a, b) => b.idleDays - a.idleDays);
 
@@ -201,6 +177,11 @@ const IdleTimeView: React.FC<IdleTimeViewProps> = ({ data, onNavigateToSprint, w
                                             }`}>
                                             {stat.idleDays} days
                                         </span>
+                                        {stat.idleDays > 0 && (
+                                            <div className="text-xs text-slate-400 mt-1" title="Idle day numbers (day of month)">
+                                                ({formatIdleDayRanges(stat.idleDates)})
+                                            </div>
+                                        )}
                                     </td>
                                     <td className="py-4 px-4 text-slate-400">
                                         {stat.totalDays} days
