@@ -21,6 +21,7 @@ A modern, high-performance dashboard for visualizing Jira data, built with React
 | ![Screenshot 1](screenshots/Screenshot_2-2-2026_235724_localhost.jpeg) | ![Screenshot 2](screenshots/Screenshot_2-2-2026_235734_localhost.jpeg) |
 | ![Screenshot 3](screenshots/Screenshot_2-2-2026_235740_localhost.jpeg) | ![Screenshot 4](screenshots/Screenshot_2-2-2026_235746_localhost.jpeg) |
 | ![Screenshot 5](screenshots/Screenshot_2-2-2026_235753_localhost.jpeg) | ![Screenshot 6](screenshots/Screenshot_2-2-2026_23579_localhost.jpeg)  |
+| ![Screenshot 7](screenshots/Screenshot_3-2-2026_0547_localhost.jpeg)   |                                                                        |
 
 ## Tech Stack
 
