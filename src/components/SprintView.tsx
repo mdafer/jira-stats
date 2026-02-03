@@ -36,12 +36,9 @@ const SprintView: React.FC<SprintViewProps> = ({ data, metrics, initialSprint, i
     }, [initialSprint, initialUser, metrics.sprintStats, data]);
 
     useEffect(() => {
-        // Only reset if we are NOT in the initial loading phase from URL
-        if (!initialUser) {
-            setGanttDevFilter(null);
-        }
+        if (!initialUser) setGanttDevFilter(null);
         setShowTimeExceededOnly(false);
-    }, [selectedSprint]);
+    }, [selectedSprint?.name]);
 
     if (!selectedSprint) {
         return (
