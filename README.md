@@ -14,6 +14,14 @@ A modern, high-performance dashboard for visualizing Jira data, built with React
 - **Settings**: Configure Jira API credentials and dashboard preferences.
 - **Cache Management**: Local storage caching for improved performance and offline access.
 
+## Screenshots
+
+|                                                                        |                                                                        |
+| ---------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| ![Screenshot 1](screenshots/Screenshot_2-2-2026_235724_localhost.jpeg) | ![Screenshot 2](screenshots/Screenshot_2-2-2026_235734_localhost.jpeg) |
+| ![Screenshot 3](screenshots/Screenshot_2-2-2026_235740_localhost.jpeg) | ![Screenshot 4](screenshots/Screenshot_2-2-2026_235746_localhost.jpeg) |
+| ![Screenshot 5](screenshots/Screenshot_2-2-2026_235753_localhost.jpeg) | ![Screenshot 6](screenshots/Screenshot_2-2-2026_23579_localhost.jpeg)  |
+
 ## Tech Stack
 
 - **Frontend**: React 19, TypeScript, Vite
