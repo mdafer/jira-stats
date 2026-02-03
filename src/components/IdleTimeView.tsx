@@ -66,11 +66,14 @@ const IdleTimeView: React.FC<IdleTimeViewProps> = ({ data, onNavigateToSprint, w
         startDate.setHours(0, 0, 0, 0);
         const endDate = new Date(sEnd);
         endDate.setHours(23, 59, 59, 999);
+        const todayEnd = new Date();
+        todayEnd.setHours(23, 59, 59, 999);
+        const effectiveEnd = endDate > todayEnd ? todayEnd : endDate;
 
-        // Only work days (same as SprintView)
+        // Only work days up to today (exclude future dates from idle count)
         const days: Date[] = [];
         const current = new Date(startDate);
-        while (current <= endDate) {
+        while (current <= effectiveEnd) {
             if (workDays.includes(current.getDay())) days.push(new Date(current));
             current.setDate(current.getDate() + 1);
         }

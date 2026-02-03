@@ -90,11 +90,14 @@ const SprintView: React.FC<SprintViewProps> = ({ data, metrics, initialSprint, i
                                     startDate.setHours(0, 0, 0, 0);
                                     const endDate = new Date(sEnd);
                                     endDate.setHours(23, 59, 59, 999);
+                                    const todayEnd = new Date();
+                                    todayEnd.setHours(23, 59, 59, 999);
+                                    const effectiveEnd = endDate > todayEnd ? todayEnd : endDate;
 
                                     developers.forEach(dev => {
                                         const devTasks = sprintTasks.filter(t => t.AssigneeName === dev || t.Stages.some(s => s.assignee === dev));
                                         const current = new Date(startDate);
-                                        while (current <= endDate) {
+                                        while (current <= effectiveEnd) {
                                             if (!workDays.includes(current.getDay())) {
                                                 current.setDate(current.getDate() + 1);
                                                 continue;
@@ -318,8 +321,11 @@ const SprintView: React.FC<SprintViewProps> = ({ data, metrics, initialSprint, i
                                         startDate.setHours(0, 0, 0, 0);
                                         const endDate = new Date(sEnd);
                                         endDate.setHours(23, 59, 59, 999);
+                                        const todayEnd = new Date();
+                                        todayEnd.setHours(23, 59, 59, 999);
+                                        const effectiveEnd = endDate > todayEnd ? todayEnd : endDate;
                                         const current = new Date(startDate);
-                                        while (current <= endDate) {
+                                        while (current <= effectiveEnd) {
                                             if (!workDays.includes(current.getDay())) {
                                                 current.setDate(current.getDate() + 1);
                                                 continue;
