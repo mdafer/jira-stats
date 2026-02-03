@@ -62,3 +62,14 @@ export const populateStages = (issue: any) => {
 
     return mergedIntervals;
 };
+
+const isDoneLikeStatus = (s: string) => {
+    const t = s.toLowerCase();
+    return t.includes('done') || t.includes('closed') || t.includes('resolved') || t.includes('complete');
+};
+
+/** Date (ISO string) when task first entered a Done-like status, or null. */
+export const getDoneAt = (task: { Stages: { status: string; start: string }[] }): string | null => {
+    const done = task.Stages?.find(s => isDoneLikeStatus(s.status));
+    return done ? done.start : null;
+};

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, ChevronRight, Info } from 'lucide-react';
 import type { JiraTask, Metrics, SelectedSprintInfo } from '../types/jira';
 import { round1dec, workDayDurationFromIntervals, formatIdleDayRanges } from '../utils/dateUtils';
 import GanttChart from './GanttChart';
@@ -14,10 +14,18 @@ interface SprintViewProps {
     onUserSelect?: (userName: string | null) => void;
 }
 
+const formatDate = (ms: number) => new Date(ms).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+const formatSprintRange = (sStart: number, sEnd: number) =>
+    (sStart !== Infinity && sEnd !== -Infinity) ? `${formatDate(sStart)} – ${formatDate(sEnd)}` : '–';
+
+const IDLE_DAYS_TOOLTIP = "Idle days are work days (from Settings) on which the developer had no task in 'In Progress' or 'In Development'. Days off are excluded from the count.";
+
 const SprintView: React.FC<SprintViewProps> = ({ data, metrics, initialSprint, initialUser, workDays, onSprintSelect, onUserSelect }) => {
     const [selectedSprint, setSelectedSprint] = useState<SelectedSprintInfo | null>(null);
     const [ganttDevFilter, setGanttDevFilter] = useState<string | null>(null);
     const [showTimeExceededOnly, setShowTimeExceededOnly] = useState<boolean>(false);
+    const [idleTooltipAt, setIdleTooltipAt] = useState<'heading' | 'column' | null>(null);
+    const [showIdleListTooltip, setShowIdleListTooltip] = useState(false);
 
     useEffect(() => {
         if (initialSprint) {
@@ -49,8 +57,45 @@ const SprintView: React.FC<SprintViewProps> = ({ data, metrics, initialSprint, i
                         <thead>
                             <tr>
                                 <th>Sprint Name</th>
+                                <th>Start – End</th>
                                 <th>Issues</th>
-                                <th>Total Idle Days</th>
+                                <th>
+                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                                        Total Idle Days
+                                        <span
+                                            onMouseEnter={() => setShowIdleListTooltip(true)}
+                                            onMouseLeave={() => setShowIdleListTooltip(false)}
+                                            style={{ display: 'inline-flex', cursor: 'help', position: 'relative', marginLeft: '4px' }}
+                                        >
+                                            <Info size={14} style={{ color: 'var(--text-muted)' }} />
+                                            {showIdleListTooltip && (
+                                                <span
+                                                    role="tooltip"
+                                                    style={{
+                                                        position: 'absolute',
+                                                        left: 0,
+                                                        top: '100%',
+                                                        marginTop: '8px',
+                                                        padding: '0.75rem',
+                                                        background: '#1e293b',
+                                                        border: '1px solid var(--border)',
+                                                        borderRadius: '8px',
+                                                        fontSize: '0.8rem',
+                                                        color: '#cbd5e1',
+                                                        width: '320px',
+                                                        whiteSpace: 'normal',
+                                                        zIndex: 100,
+                                                        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+                                                        pointerEvents: 'none',
+                                                        lineHeight: '1.5'
+                                                    }}
+                                                >
+                                                    {IDLE_DAYS_TOOLTIP}
+                                                </span>
+                                            )}
+                                        </span>
+                                    </span>
+                                </th>
                                 <th>Avg Idle/Issue</th>
                             </tr>
                         </thead>
@@ -131,6 +176,7 @@ const SprintView: React.FC<SprintViewProps> = ({ data, metrics, initialSprint, i
                                                 {sprint.name} <ChevronRight size={14} color="var(--text-muted)" />
                                             </div>
                                         </td>
+                                        <td style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>{formatSprintRange(sStart, sEnd)}</td>
                                         <td>{sprint.tasks}</td>
                                         <td>{totalIdleDays} d</td>
                                         <td>{sprint.tasks > 0 ? round1dec(totalIdleDays / sprint.tasks) : 0} d</td>
@@ -275,6 +321,9 @@ const SprintView: React.FC<SprintViewProps> = ({ data, metrics, initialSprint, i
                         ) : (
                             <h2 style={{ fontSize: '1.5rem' }}>{selectedSprint.name}</h2>
                         )}
+                        <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem', fontWeight: 400 }}>
+                            {formatSprintRange(sStart, sEnd)}
+                        </span>
                     </div>
                     <button
                         onClick={() => setShowTimeExceededOnly(!showTimeExceededOnly)}
@@ -297,14 +346,84 @@ const SprintView: React.FC<SprintViewProps> = ({ data, metrics, initialSprint, i
 
                 <div style={{ display: 'grid', gridTemplateColumns: selectedDevDataFromDisplay ? '1fr 1fr' : '1fr', gap: '2rem', marginBottom: '3rem' }}>
                     <div>
-                        <h3 style={{ marginBottom: '1rem' }}>Developer Idle Days</h3>
+                        <h3 style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                Developer Idle Days
+                                <span
+                                    onMouseEnter={() => setIdleTooltipAt('heading')}
+                                    onMouseLeave={() => setIdleTooltipAt(null)}
+                                    style={{ display: 'inline-flex', cursor: 'help', position: 'relative', width: 16, height: 16, flexShrink: 0, marginLeft: '4px' }}
+                                >
+                                    <Info size={16} style={{ color: 'var(--text-muted)', pointerEvents: 'none' }} />
+                                    {idleTooltipAt === 'heading' && (
+                                        <span
+                                            role="tooltip"
+                                            style={{
+                                                position: 'absolute',
+                                                left: 0,
+                                                top: '100%',
+                                                marginTop: '8px',
+                                                padding: '0.75rem',
+                                                background: '#1e293b',
+                                                border: '1px solid var(--border)',
+                                                borderRadius: '8px',
+                                                fontSize: '0.8rem',
+                                                color: '#cbd5e1',
+                                                width: '320px',
+                                                whiteSpace: 'normal',
+                                                zIndex: 100,
+                                                boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+                                                pointerEvents: 'none',
+                                                lineHeight: '1.5'
+                                            }}
+                                        >
+                                            {IDLE_DAYS_TOOLTIP}
+                                        </span>
+                                    )}
+                                </span>
+                        </h3>
                         <div className="table-container">
                             <table>
                                 <thead>
                                     <tr>
                                         <th>Developer</th>
                                         <th>Tasks</th>
-                                        <th>Idle Days</th>
+                                        <th>
+                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                                                Idle Days
+                                                <span
+                                                    onMouseEnter={() => setIdleTooltipAt('column')}
+                                                    onMouseLeave={() => setIdleTooltipAt(null)}
+                                                    style={{ display: 'inline-flex', cursor: 'help', position: 'relative', width: 14, height: 14, flexShrink: 0, marginLeft: '4px' }}
+                                                >
+                                                    <Info size={14} style={{ color: 'var(--text-muted)', pointerEvents: 'none' }} />
+                                                    {idleTooltipAt === 'column' && (
+                                                        <span
+                                                            role="tooltip"
+                                                            style={{
+                                                                position: 'absolute',
+                                                                left: 0,
+                                                                top: '100%',
+                                                                marginTop: '8px',
+                                                                padding: '0.75rem',
+                                                                background: '#1e293b',
+                                                                border: '1px solid var(--border)',
+                                                                borderRadius: '8px',
+                                                                fontSize: '0.8rem',
+                                                                color: '#cbd5e1',
+                                                                width: '320px',
+                                                                whiteSpace: 'normal',
+                                                                zIndex: 100,
+                                                                boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+                                                                pointerEvents: 'none',
+                                                                lineHeight: '1.5'
+                                                            }}
+                                                        >
+                                                            {IDLE_DAYS_TOOLTIP}
+                                                        </span>
+                                                    )}
+                                                </span>
+                                            </span>
+                                        </th>
                                     </tr>
                                 </thead>
                                 <tbody>

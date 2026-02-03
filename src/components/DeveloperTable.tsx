@@ -32,7 +32,6 @@ const DeveloperTable: React.FC<DeveloperTableProps> = ({ metrics, data, onNaviga
                             <th>Points</th>
                             <th>Avg Dev Time</th>
                             <th>View Sprints</th>
-                            <th>Activity</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -57,11 +56,6 @@ const DeveloperTable: React.FC<DeveloperTableProps> = ({ metrics, data, onNaviga
                                                     <ExternalLink size={10} />
                                                 </button>
                                             ))}
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <div className="progress-bar-container" style={{ width: '120px' }}>
-                                            <div className="progress-bar-fill" style={{ width: `${Math.min(100, (dev.points / (metrics.totalStoryPoints || 1)) * 500)}%` }}></div>
                                         </div>
                                     </td>
                                 </tr>
