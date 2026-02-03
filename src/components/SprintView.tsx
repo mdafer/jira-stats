@@ -10,7 +10,7 @@ interface SprintViewProps {
     initialSprint?: string | null;
     initialUser?: string | null;
     workDays: number[];
-    onSprintSelect?: (sprintName: string) => void;
+    onSprintSelect?: (sprintName: string, preserveUser?: string | null) => void;
     onUserSelect?: (userName: string | null) => void;
 }
 
@@ -262,7 +262,19 @@ const SprintView: React.FC<SprintViewProps> = ({ data, metrics, initialSprint, i
                         >
                             <ArrowLeft size={18} />
                         </button>
-                        <h2 style={{ fontSize: '1.5rem' }}>{selectedSprint.name}</h2>
+                        {onSprintSelect ? (
+                            <select
+                                value={selectedSprint.name}
+                                onChange={(e) => onSprintSelect(e.target.value, initialUser ?? ganttDevFilter)}
+                                style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.5rem 2rem 0.5rem 0.75rem', borderRadius: '8px', fontSize: '1.5rem', fontWeight: 600, cursor: 'pointer', appearance: 'none', backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.5rem center', colorScheme: 'dark' }}
+                            >
+                                {metrics.sprintStats.map((s) => (
+                                    <option key={s.name} value={s.name}>{s.name}</option>
+                                ))}
+                            </select>
+                        ) : (
+                            <h2 style={{ fontSize: '1.5rem' }}>{selectedSprint.name}</h2>
+                        )}
                     </div>
                     <button
                         onClick={() => setShowTimeExceededOnly(!showTimeExceededOnly)}
@@ -296,7 +308,7 @@ const SprintView: React.FC<SprintViewProps> = ({ data, metrics, initialSprint, i
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {Object.values(displayDevData).map((stats: any) => {
+                                    {Object.values(displayDevData).sort((a, b) => a.name.localeCompare(b.name)).map((stats: any) => {
                                         // Idle days = work days (from settings) with 0 tasks in progress; days off excluded
                                         const devTasks = selectedSprint.tasks.filter(t => (t.AssigneeName === stats.name || t.Stages.some(s => s.assignee === stats.name)));
                                         const IN_PROGRESS_KEYWORDS = ['in progress', 'in development'];

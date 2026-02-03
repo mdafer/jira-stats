@@ -1,6 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap');
 
 :root {
+  color-scheme: dark;
   --primary: #6366f1;
   --primary-hover: #4f46e5;
   --bg-dark: #0f172a;
@@ -76,6 +77,16 @@ h4 {
 .card:hover {
   transform: translateY(-2px);
   box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+}
+
+select {
+  background-color: var(--bg-card) !important;
+  color: var(--text-main) !important;
+}
+
+select option {
+  background-color: var(--bg-card);
+  color: var(--text-main);
 }
 
 .status-badge {

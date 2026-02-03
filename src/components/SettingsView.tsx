@@ -105,7 +105,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                 <div className="info-grid">
                     <div className="info-card">
                         <span className="info-label">Version</span>
-                        <span className="info-value">1.0.0</span>
+                        <span className="info-value">{__APP_VERSION__}</span>
                     </div>
                     <div className="info-card">
                         <span className="info-label">Environment</span>
