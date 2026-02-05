@@ -24,8 +24,10 @@ const SprintView: React.FC<SprintViewProps> = ({ data, metrics, initialSprint, i
     const [selectedSprint, setSelectedSprint] = useState<SelectedSprintInfo | null>(null);
     const [ganttDevFilter, setGanttDevFilter] = useState<string | null>(null);
     const [showTimeExceededOnly, setShowTimeExceededOnly] = useState<boolean>(false);
-    const [idleTooltipAt, setIdleTooltipAt] = useState<'heading' | 'column' | null>(null);
+    const [idleTooltipAt, setIdleTooltipAt] = useState<'heading' | 'column' | 'timeSpent' | null>(null);
     const [showIdleListTooltip, setShowIdleListTooltip] = useState(false);
+
+    const TIME_SPENT_TOOLTIP = "Time spent is calculated as the sum of work days (from Settings) during which the task was in 'In Progress', 'In Development', 'Code Review', or 'Ready for QA' statuses.";
 
     useEffect(() => {
         if (initialSprint) {
@@ -515,7 +517,45 @@ const SprintView: React.FC<SprintViewProps> = ({ data, metrics, initialSprint, i
                                         <tr>
                                             <th>Task</th>
                                             <th>Points</th>
-                                            <th>Time Spent</th>
+                                            <th style={{ whiteSpace: 'nowrap' }}>
+                                                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                                                    Time Spent
+                                                    <span
+                                                        onMouseEnter={() => setIdleTooltipAt('timeSpent')}
+                                                        onMouseLeave={() => setIdleTooltipAt(null)}
+                                                        style={{ display: 'inline-flex', cursor: 'help', position: 'relative', width: 14, height: 14, flexShrink: 0 }}
+                                                    >
+                                                        <Info size={14} style={{ color: 'var(--text-muted)', pointerEvents: 'none' }} />
+                                                        {idleTooltipAt === 'timeSpent' && (
+                                                            <span
+                                                                role="tooltip"
+                                                                style={{
+                                                                    position: 'absolute',
+                                                                    right: 0,
+                                                                    top: '100%',
+                                                                    marginTop: '8px',
+                                                                    padding: '0.75rem',
+                                                                    background: '#1e293b',
+                                                                    border: '1px solid var(--border)',
+                                                                    borderRadius: '8px',
+                                                                    fontSize: '0.8rem',
+                                                                    color: '#cbd5e1',
+                                                                    width: '280px',
+                                                                    whiteSpace: 'normal',
+                                                                    zIndex: 100,
+                                                                    boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+                                                                    pointerEvents: 'none',
+                                                                    lineHeight: '1.5',
+                                                                    fontWeight: 400,
+                                                                    textAlign: 'left'
+                                                                }}
+                                                            >
+                                                                {TIME_SPENT_TOOLTIP}
+                                                            </span>
+                                                        )}
+                                                    </span>
+                                                </div>
+                                            </th>
                                         </tr>
                                     </thead>
                                     <tbody>
