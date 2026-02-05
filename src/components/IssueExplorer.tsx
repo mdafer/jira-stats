@@ -181,7 +181,7 @@ const IssueExplorer: React.FC<IssueExplorerProps> = ({ data }) => {
                         {filteredData.slice(0, 100).map((task, i) => (
                             <tr key={i}>
                                 <td><a href={task.Link} target="_blank" rel="noreferrer" style={{ color: 'var(--primary)', textDecoration: 'none', fontWeight: 600 }}>{task.ID}</a></td>
-                                <td style={{ maxWidth: '400px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.Name}</td>
+                                <td style={{ maxWidth: '400px', wordBreak: 'break-word', whiteSpace: 'normal' }}>{task.Name}</td>
                                 <td>{task.AssigneeName}</td>
                                 <td style={{ fontWeight: 700 }}>{task.StoryPoints || '-'}</td>
                                 <td>
