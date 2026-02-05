@@ -21,6 +21,11 @@ const SettingsView: React.FC<SettingsViewProps> = ({
     workDays,
     onUpdateWorkDays
 }) => {
+    const cacheTTL = Number(import.meta.env.VITE_CACHE_TTL_MINUTES) || 720;
+    const cacheTTLText = cacheTTL >= 60 
+        ? `${cacheTTL / 60} hour${cacheTTL / 60 > 1 ? 's' : ''}` 
+        : `${cacheTTL} minutes`;
+
     return (
         <div className="settings-container">
             <div className="card glass-morphism settings-section">
@@ -91,7 +96,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                     <div className="tip-box">
                         <h4 className="tip-title">About Data Freshness</h4>
                         <ul className="tip-list">
-                            <li>Data is automatically cached for 30 minutes.</li>
+                            <li>Data is automatically cached for {cacheTTLText}.</li>
                             <li>"From Cache" means you are viewing locally stored data.</li>
                             <li>"Live Data" means the data was just fetched from Jira.</li>
                             <li>Use "Refresh Now" to force an update from Jira.</li>
