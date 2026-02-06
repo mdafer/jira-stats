@@ -8,6 +8,7 @@ services:
         - VITE_JIRA_EMAIL=${VITE_JIRA_EMAIL}
         - VITE_JIRA_TOKEN=${VITE_JIRA_TOKEN}
         - VITE_JIRA_JQL=${VITE_JIRA_JQL}
+        - VITE_PROJECT_TITLE=${VITE_PROJECT_TITLE}
     ports:
       - "${VITE_PORT:-8080}:80"
     restart: unless-stopped

@@ -114,7 +114,7 @@ const App: React.FC = () => {
         <header className="dashboard-header">
           <div className="header-content">
             <div>
-              <h1 className="page-title">Live API Dashboard</h1>
+              <h1 className="page-title">{import.meta.env.VITE_PROJECT_TITLE || 'Jira Stats'}</h1>
               <p className="project-subtitle">Project: AM (Modernization)</p>
             </div>
             <div className="connection-badge card glass-morphism">
