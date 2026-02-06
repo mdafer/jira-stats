@@ -1,0 +1,15 @@
+services:
+  jira-dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - VITE_JIRA_DOMAIN=${VITE_JIRA_DOMAIN}
+        - VITE_JIRA_EMAIL=${VITE_JIRA_EMAIL}
+        - VITE_JIRA_TOKEN=${VITE_JIRA_TOKEN}
+        - VITE_JIRA_JQL=${VITE_JIRA_JQL}
+    ports:
+      - "${PORT:-8080}:80"
+    restart: unless-stopped
+    env_file:
+      - .env

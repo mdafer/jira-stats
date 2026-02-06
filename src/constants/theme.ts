@@ -10,5 +10,3 @@ export const TABS = {
 } as const;
 
 export type TabType = typeof TABS[keyof typeof TABS];
-
-export const JIRA_DOMAIN = 'https://mehe-modernization-division.atlassian.net';

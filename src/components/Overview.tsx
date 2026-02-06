@@ -20,7 +20,7 @@ import MetricsCard from './MetricsCard';
 
 interface OverviewProps {
     metrics: Metrics;
-    onNavigateToSprint: (sprintName: string) => void;
+    onNavigateToSprint: (sprintName: string, userName?: string | null) => void;
 }
 
 const Overview: React.FC<OverviewProps> = ({ metrics, onNavigateToSprint }) => {
@@ -61,7 +61,7 @@ const Overview: React.FC<OverviewProps> = ({ metrics, onNavigateToSprint }) => {
                                 data={metrics.sprintStats}
                                 onClick={(data) => {
                                     if (data && data.activeLabel) {
-                                        onNavigateToSprint(data.activeLabel);
+                                        onNavigateToSprint(String(data.activeLabel));
                                     }
                                 }}
                                 style={{ cursor: 'pointer' }}

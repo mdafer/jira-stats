@@ -84,7 +84,7 @@ const App: React.FC = () => {
     }
   };
 
-  const handleNavigateToSprint = (sprintName: string, userName?: string) => {
+  const handleNavigateToSprint = (sprintName: string, userName?: string | null) => {
     const user = userName || null;
     setSprintToView(sprintName);
     setUserToFilter(user);

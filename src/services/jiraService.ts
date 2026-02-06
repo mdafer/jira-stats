@@ -1,7 +1,7 @@
 import type { JiraTask } from '../types/jira';
 import { populateStages } from '../utils/jiraUtils';
-import { JIRA_DOMAIN } from '../constants/theme';
 
+const JIRA_DOMAIN = import.meta.env.VITE_JIRA_DOMAIN;
 export const fetchJiraIssues = async (
     email: string,
     token: string,
@@ -32,17 +32,13 @@ export const fetchJiraIssues = async (
     let nextPageToken: string | null = null;
     let isLast = false;
 
-    console.log(`[Jira Fetch] Starting fetch with JQL: ${jql.substring(0, 50)}...`);
-
     while (!isLast && iteration < maxIterations) {
-        // Use /jql endpoint with separate query params for token
-        let url = `/api/jira/rest/api/3/search/jql?jql=${encodeURIComponent(jql)}&maxResults=${batchSize}&expand=changelog&fields=*all`;
+        // Use /jira proxy path instead of direct JIRA_DOMAIN to avoid CORS issues
+        let url = `/jira/rest/api/3/search/jql?jql=${encodeURIComponent(jql)}&maxResults=${batchSize}&expand=changelog&fields=*all`;
 
         if (nextPageToken) {
             url += `&nextPageToken=${encodeURIComponent(nextPageToken)}`;
         }
-
-        console.log(`[Jira Fetch] Fetching batch ${iteration + 1}: ${nextPageToken ? 'nextPageToken=...' : 'First Page'}`);
 
         let response = await fetch(url, {
             method: 'GET',
@@ -73,7 +69,6 @@ export const fetchJiraIssues = async (
         const newIssues = result.issues.filter((issue: any) => !allIssues.some(existing => existing.key === issue.key));
 
         if (newIssues.length === 0) {
-            console.log('[Jira Fetch] ⚠️ Received only duplicates in this batch. Stopping to prevent infinite loop.');
             break;
         }
 
@@ -82,8 +77,6 @@ export const fetchJiraIssues = async (
         // Update pagination state
         isLast = result.isLast === true; // Ensure boolean
         nextPageToken = result.nextPageToken || null;
-
-        console.log(`[Jira Fetch] Batch received: ${currentBatchSize} issues. Total gathered: ${allIssues.length}. isLast: ${isLast}`);
 
         if (onProgress) {
             // We don't know total with this endpoint, so just send current count
@@ -96,8 +89,6 @@ export const fetchJiraIssues = async (
     if (iteration >= maxIterations) {
         console.warn(`[Jira Fetch] ⚠️ Reached maximum iterations (${maxIterations}), stopping fetch`);
     }
-
-    console.log(`[Jira Fetch] ✓ Completed! Fetched ${allIssues.length} tasks total`);
 
     return allIssues.map(issue => transformIssue(issue));
 };

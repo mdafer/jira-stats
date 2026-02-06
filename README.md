@@ -62,6 +62,14 @@ A modern, high-performance dashboard for visualizing Jira data, built with React
    VITE_JIRA_TOKEN=your-api-token
    ```
 
+#### How to get a Jira API Token
+
+1. Log in to your Atlassian account at [id.atlassian.com](https://id.atlassian.com).
+2. Go to **Security** > **API tokens**.
+3. Click **Create API token**.
+4. Give your token a label (e.g., "Jira Dashboard") and click **Create**.
+5. Copy the token immediately and save it securely (you won't be able to see it again).
+
 ### Data Update (CSV Method)
 
 If you are using the Jira Data Extractor tool:
