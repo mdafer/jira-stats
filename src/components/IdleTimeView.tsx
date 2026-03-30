@@ -2,6 +2,8 @@ import React, { useState, useMemo } from 'react';
 import { Calendar, User, ArrowRight } from 'lucide-react';
 import type { JiraTask } from '../types/jira';
 import { formatIdleDayRanges } from '../utils/dateUtils';
+import { useTableSort } from '../hooks/useTableSort';
+import SortableHeader from './SortableHeader';
 
 interface IdleTimeViewProps {
     data: JiraTask[];
@@ -128,6 +130,8 @@ const IdleTimeView: React.FC<IdleTimeViewProps> = ({ data, onNavigateToSprint, w
 
     }, [data, selectedSprint, workDays]);
 
+    const { sorted: sortedIdleStats, sort, toggleSort } = useTableSort(idleStats, 'idleDays', 'desc');
+
     return (
         <div className="space-y-6">
             <div className="card glass-morphism p-6">
@@ -155,15 +159,15 @@ const IdleTimeView: React.FC<IdleTimeViewProps> = ({ data, onNavigateToSprint, w
                     <table className="w-full">
                         <thead>
                             <tr className="border-b border-slate-700">
-                                <th className="text-left py-4 px-4 text-slate-400 font-medium">Developer</th>
-                                <th className="text-left py-4 px-4 text-slate-400 font-medium">Idle Days</th>
-                                <th className="text-left py-4 px-4 text-slate-400 font-medium">Sprint Duration</th>
+                                <SortableHeader label="Developer" sortKey="name" sort={sort} onToggle={toggleSort} />
+                                <SortableHeader label="Idle Days" sortKey="idleDays" sort={sort} onToggle={toggleSort} />
+                                <SortableHeader label="Sprint Duration" sortKey="totalDays" sort={sort} onToggle={toggleSort} />
                                 <th className="text-left py-4 px-4 text-slate-400 font-medium">Status</th>
                                 <th className="text-right py-4 px-4 text-slate-400 font-medium">Action</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {idleStats.map((stat, idx) => (
+                            {sortedIdleStats.map((stat, idx) => (
                                 <tr key={idx} className="border-b border-slate-800 hover:bg-slate-800/30 transition-colors">
                                     <td className="py-4 px-4">
                                         <div className="flex items-center gap-3">

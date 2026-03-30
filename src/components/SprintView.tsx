@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { ArrowLeft, ChevronRight, Info } from 'lucide-react';
 import type { JiraTask, Metrics, SelectedSprintInfo } from '../types/jira';
 import { round1dec, workDayDurationFromIntervals, formatIdleDayRanges } from '../utils/dateUtils';
 import GanttChart from './GanttChart';
+import { useTableSort } from '../hooks/useTableSort';
+import SortableHeader from './SortableHeader';
 
 interface SprintViewProps {
     data: JiraTask[];
@@ -50,6 +52,217 @@ const SprintView: React.FC<SprintViewProps> = ({ data, metrics, initialSprint, i
         setShowTimeExceededOnly(false);
     }, [selectedSprint?.name]);
 
+    // Pre-compute sprint list rows for sorting
+    const sprintRows = useMemo(() => metrics.sprintStats.map(sprint => {
+        const sprintTasks = data.filter(t => t.Sprint === sprint.name);
+        const developers = Array.from(new Set(sprintTasks.map(t => t.AssigneeName).filter(Boolean)));
+
+        let sStart = Infinity;
+        let sEnd = -Infinity;
+        const sprintDatesTask = sprintTasks.find(t => t.SprintStart && (t.SprintEnd || t.Sprint));
+        if (sprintDatesTask && sprintDatesTask.SprintStart) {
+            sStart = new Date(sprintDatesTask.SprintStart).getTime();
+            sEnd = new Date(sprintDatesTask.SprintEnd || new Date()).getTime();
+        } else {
+            sprintTasks.forEach(t => {
+                t.Stages.forEach(s => {
+                    const st = new Date(s.start).getTime();
+                    const en = new Date(s.end).getTime();
+                    if (st < sStart) sStart = st;
+                    if (en > sEnd) sEnd = en;
+                });
+            });
+        }
+
+        const IN_PROGRESS_KEYWORDS = ['in progress', 'in development'];
+        let totalIdleDays = 0;
+
+        if (sStart !== Infinity && sEnd !== -Infinity) {
+            const startDate = new Date(sStart);
+            startDate.setHours(0, 0, 0, 0);
+            const endDate = new Date(sEnd);
+            endDate.setHours(23, 59, 59, 999);
+            const todayEnd = new Date();
+            todayEnd.setHours(23, 59, 59, 999);
+            const effectiveEnd = endDate > todayEnd ? todayEnd : endDate;
+
+            developers.forEach(dev => {
+                const devTasks = sprintTasks.filter(t => t.AssigneeName === dev || t.Stages.some(s => s.assignee === dev));
+                const current = new Date(startDate);
+                while (current <= effectiveEnd) {
+                    if (!workDays.includes(current.getDay())) { current.setDate(current.getDate() + 1); continue; }
+                    const dayStart = new Date(current); dayStart.setHours(0, 0, 0, 0);
+                    const dayEnd = new Date(current); dayEnd.setHours(23, 59, 59, 999);
+                    let isWorking = false;
+                    for (const task of devTasks) {
+                        for (const stage of task.Stages) {
+                            const s = stage.status.toLowerCase();
+                            if (IN_PROGRESS_KEYWORDS.some(k => s.includes(k))) {
+                                const stageStart = new Date(stage.start);
+                                const stageEnd = stage.end ? new Date(stage.end) : new Date();
+                                if (dayStart <= stageEnd && dayEnd >= stageStart) { isWorking = true; break; }
+                            }
+                        }
+                        if (isWorking) break;
+                    }
+                    if (!isWorking) totalIdleDays++;
+                    current.setDate(current.getDate() + 1);
+                }
+            });
+        }
+
+        return { name: sprint.name, tasks: sprint.tasks, sStart, sEnd, totalIdleDays, avgIdle: sprint.tasks > 0 ? round1dec(totalIdleDays / sprint.tasks) : 0, sprintTasks };
+    }), [metrics.sprintStats, data, workDays]);
+
+    const { sorted: sortedSprintRows, sort: sprintSort, toggleSort: toggleSprintSort } = useTableSort(sprintRows);
+
+    // Sprint Detail View computations — must run unconditionally (before any early return) to satisfy Rules of Hooks
+    const detailViewData = useMemo(() => {
+        if (!selectedSprint) {
+            return { sStart: Infinity, sEnd: -Infinity, devData: {} as Record<string, { name: string, intervals: { start: number, end: number }[], taskIntervals: Record<string, { start: number, end: number }[]>, tasks: Set<string> }>, tasksExceedingTime: [] as typeof selectedSprint extends null ? never[] : JiraTask[], displayTasks: [] as JiraTask[], filteredDevData: {} as Record<string, { name: string, intervals: { start: number, end: number }[], taskIntervals: Record<string, { start: number, end: number }[]>, tasks: Set<string> }>, displayDevData: {} as Record<string, { name: string, intervals: { start: number, end: number }[], taskIntervals: Record<string, { start: number, end: number }[]>, tasks: Set<string> }>, selectedDevDataFromDisplay: null as null | { name: string, intervals: { start: number, end: number }[], taskIntervals: Record<string, { start: number, end: number }[]>, tasks: Set<string> }, exceedingTaskCount: 0 };
+        }
+
+        const sprintDates = selectedSprint.tasks.find(t => t.SprintStart && (t.SprintEnd || t.Sprint));
+        let sStart = Infinity;
+        let sEnd = -Infinity;
+
+        if (sprintDates && sprintDates.SprintStart) {
+            sStart = new Date(sprintDates.SprintStart).getTime();
+            sEnd = new Date(sprintDates.SprintEnd || new Date()).getTime();
+        } else {
+            selectedSprint.tasks.forEach(t => {
+                t.Stages.forEach(s => {
+                    const st = new Date(s.start).getTime();
+                    const en = new Date(s.end).getTime();
+                    if (st < sStart) sStart = st;
+                    if (en > sEnd) sEnd = en;
+                });
+            });
+        }
+
+        const devData = selectedSprint.tasks.reduce((acc, task) => {
+            task.Stages.forEach(stage => {
+                const status = stage.status.toLowerCase();
+                const activeStatuses = ['in progress', 'code review', 'ready for qa'];
+                if (activeStatuses.includes(status)) {
+                    const dev = stage.assignee || task.AssigneeName;
+                    if (!acc[dev]) acc[dev] = { name: dev, intervals: [], taskIntervals: {}, tasks: new Set() };
+                    const st = new Date(stage.start).getTime();
+                    const en = new Date(stage.end).getTime();
+                    const clipStart = Math.max(st, sStart);
+                    const clipEnd = Math.min(en, sEnd);
+                    if (clipStart < clipEnd) {
+                        acc[dev].intervals.push({ start: clipStart, end: clipEnd });
+                        if (!acc[dev].taskIntervals[task.ID]) acc[dev].taskIntervals[task.ID] = [];
+                        acc[dev].taskIntervals[task.ID].push({ start: clipStart, end: clipEnd });
+                    }
+                    acc[dev].tasks.add(task.ID);
+                }
+            });
+            return acc;
+        }, {} as Record<string, { name: string, intervals: { start: number, end: number }[], taskIntervals: Record<string, { start: number, end: number }[]>, tasks: Set<string> }>);
+
+        const tasksExceedingTime = selectedSprint.tasks.filter(task => {
+            if (!task.StoryPoints || task.StoryPoints <= 0) return false;
+            const taskIntervals: { start: number, end: number }[] = [];
+            task.Stages.forEach(stage => {
+                const status = stage.status.toLowerCase();
+                const activeStatuses = ['in progress', 'code review', 'ready for qa'];
+                if (activeStatuses.includes(status)) {
+                    const st = new Date(stage.start).getTime();
+                    const en = new Date(stage.end).getTime();
+                    const clipStart = Math.max(st, sStart);
+                    const clipEnd = Math.min(en, sEnd);
+                    if (clipStart < clipEnd) taskIntervals.push({ start: clipStart, end: clipEnd });
+                }
+            });
+            const timeInDays = workDayDurationFromIntervals(taskIntervals, workDays);
+            return timeInDays > task.StoryPoints;
+        });
+
+        const displayTasks = showTimeExceededOnly ? tasksExceedingTime : selectedSprint.tasks;
+
+        const filteredDevData = displayTasks.reduce((acc, task) => {
+            task.Stages.forEach(stage => {
+                const status = stage.status.toLowerCase();
+                const activeStatuses = ['in progress', 'code review', 'ready for qa'];
+                if (activeStatuses.includes(status)) {
+                    const dev = stage.assignee || task.AssigneeName;
+                    if (!acc[dev]) acc[dev] = { name: dev, intervals: [], taskIntervals: {}, tasks: new Set() };
+                    const st = new Date(stage.start).getTime();
+                    const en = new Date(stage.end).getTime();
+                    const clipStart = Math.max(st, sStart);
+                    const clipEnd = Math.min(en, sEnd);
+                    if (clipStart < clipEnd) {
+                        acc[dev].intervals.push({ start: clipStart, end: clipEnd });
+                        if (!acc[dev].taskIntervals[task.ID]) acc[dev].taskIntervals[task.ID] = [];
+                        acc[dev].taskIntervals[task.ID].push({ start: clipStart, end: clipEnd });
+                    }
+                    acc[dev].tasks.add(task.ID);
+                }
+            });
+            return acc;
+        }, {} as Record<string, { name: string, intervals: { start: number, end: number }[], taskIntervals: Record<string, { start: number, end: number }[]>, tasks: Set<string> }>);
+
+        const displayDevData = showTimeExceededOnly ? filteredDevData : devData;
+        const selectedDevDataFromDisplay = ganttDevFilter ? displayDevData[ganttDevFilter] : null;
+        const exceedingTaskCount = ganttDevFilter && selectedDevDataFromDisplay
+            ? selectedDevDataFromDisplay.tasks.size
+            : tasksExceedingTime.length;
+
+        return { sStart, sEnd, devData, tasksExceedingTime, displayTasks, filteredDevData, displayDevData, selectedDevDataFromDisplay, exceedingTaskCount };
+    }, [selectedSprint, showTimeExceededOnly, ganttDevFilter, workDays]);
+
+    const { sStart, sEnd, displayTasks, displayDevData, selectedDevDataFromDisplay, exceedingTaskCount } = detailViewData;
+
+    const devIdleRows = useMemo(() => {
+        if (!selectedSprint || sStart === Infinity || sEnd === -Infinity) return [];
+        return Object.values(displayDevData).map((stats: any) => {
+            const devTasks = selectedSprint.tasks.filter(t => (t.AssigneeName === stats.name || t.Stages.some((s: any) => s.assignee === stats.name)));
+            const IN_PROGRESS_KEYWORDS = ['in progress', 'in development'];
+            const idleDates: Date[] = [];
+
+            const startDate = new Date(sStart); startDate.setHours(0, 0, 0, 0);
+            const endDate = new Date(sEnd); endDate.setHours(23, 59, 59, 999);
+            const todayEnd = new Date(); todayEnd.setHours(23, 59, 59, 999);
+            const effectiveEnd = endDate > todayEnd ? todayEnd : endDate;
+            const current = new Date(startDate);
+            while (current <= effectiveEnd) {
+                if (!workDays.includes(current.getDay())) { current.setDate(current.getDate() + 1); continue; }
+                const dayStart = new Date(current); dayStart.setHours(0, 0, 0, 0);
+                const dayEnd = new Date(current); dayEnd.setHours(23, 59, 59, 999);
+                let isWorking = false;
+                for (const task of devTasks) {
+                    for (const stage of task.Stages) {
+                        const s = stage.status.toLowerCase();
+                        if (IN_PROGRESS_KEYWORDS.some(k => s.includes(k))) {
+                            const stageStart = new Date(stage.start);
+                            const stageEnd = stage.end ? new Date(stage.end) : new Date();
+                            if (dayStart <= stageEnd && dayEnd >= stageStart) { isWorking = true; break; }
+                        }
+                    }
+                    if (isWorking) break;
+                }
+                if (!isWorking) idleDates.push(new Date(current));
+                current.setDate(current.getDate() + 1);
+            }
+            return { name: stats.name, taskCount: stats.tasks.size, idleDays: idleDates.length, idleDates };
+        });
+    }, [displayDevData, selectedSprint, sStart, sEnd, workDays]);
+
+    const { sorted: sortedDevIdleRows, sort: devIdleSort, toggleSort: toggleDevIdleSort } = useTableSort(devIdleRows);
+
+    const devTaskRows = useMemo(() => {
+        if (!selectedDevDataFromDisplay || !selectedSprint) return [];
+        return Object.entries(selectedDevDataFromDisplay.taskIntervals).map(([taskId, intervals]: any) => {
+            const task = selectedSprint.tasks.find(t => t.ID === taskId);
+            const timeSpent = round1dec(workDayDurationFromIntervals(intervals, workDays));
+            return { taskId, task, epic: task?.Epic || '', points: task?.StoryPoints || 0, timeSpent, intervals };
+        });
+    }, [selectedDevDataFromDisplay, selectedSprint, workDays]);
+
+    const { sorted: sortedDevTaskRows, sort: devTaskSort, toggleSort: toggleDevTaskSort } = useTableSort(devTaskRows);
+
     if (!selectedSprint) {
         return (
             <div className="card glass-morphism">
@@ -58,246 +271,54 @@ const SprintView: React.FC<SprintViewProps> = ({ data, metrics, initialSprint, i
                     <table>
                         <thead>
                             <tr>
-                                <th>Sprint Name</th>
+                                <SortableHeader label="Sprint Name" sortKey="name" sort={sprintSort} onToggle={toggleSprintSort} />
                                 <th>Start – End</th>
-                                <th>Issues</th>
-                                <th>
-                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
-                                        Total Idle Days
-                                        <span
-                                            onMouseEnter={() => setShowIdleListTooltip(true)}
-                                            onMouseLeave={() => setShowIdleListTooltip(false)}
-                                            style={{ display: 'inline-flex', cursor: 'help', position: 'relative', marginLeft: '4px' }}
-                                        >
-                                            <Info size={14} style={{ color: 'var(--text-muted)' }} />
-                                            {showIdleListTooltip && (
-                                                <span
-                                                    role="tooltip"
-                                                    style={{
-                                                        position: 'absolute',
-                                                        left: 0,
-                                                        top: '100%',
-                                                        marginTop: '8px',
-                                                        padding: '0.75rem',
-                                                        background: '#1e293b',
-                                                        border: '1px solid var(--border)',
-                                                        borderRadius: '8px',
-                                                        fontSize: '0.8rem',
-                                                        color: '#cbd5e1',
-                                                        width: '320px',
-                                                        whiteSpace: 'normal',
-                                                        zIndex: 100,
-                                                        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
-                                                        pointerEvents: 'none',
-                                                        lineHeight: '1.5'
-                                                    }}
-                                                >
-                                                    {IDLE_DAYS_TOOLTIP}
-                                                </span>
-                                            )}
-                                        </span>
+                                <SortableHeader label="Issues" sortKey="tasks" sort={sprintSort} onToggle={toggleSprintSort} />
+                                <SortableHeader label="Total Idle Days" sortKey="totalIdleDays" sort={sprintSort} onToggle={toggleSprintSort}>
+                                    <span
+                                        onMouseEnter={() => setShowIdleListTooltip(true)}
+                                        onMouseLeave={() => setShowIdleListTooltip(false)}
+                                        style={{ display: 'inline-flex', cursor: 'help', position: 'relative', marginLeft: '4px' }}
+                                    >
+                                        <Info size={14} style={{ color: 'var(--text-muted)' }} />
+                                        {showIdleListTooltip && (
+                                            <span
+                                                role="tooltip"
+                                                style={{
+                                                    position: 'absolute', left: 0, top: '100%', marginTop: '8px', padding: '0.75rem',
+                                                    background: '#1e293b', border: '1px solid var(--border)', borderRadius: '8px',
+                                                    fontSize: '0.8rem', color: '#cbd5e1', width: '320px', whiteSpace: 'normal',
+                                                    zIndex: 100, boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)', pointerEvents: 'none', lineHeight: '1.5'
+                                                }}
+                                            >
+                                                {IDLE_DAYS_TOOLTIP}
+                                            </span>
+                                        )}
                                     </span>
-                                </th>
-                                <th>Avg Idle/Issue</th>
+                                </SortableHeader>
+                                <SortableHeader label="Avg Idle/Issue" sortKey="avgIdle" sort={sprintSort} onToggle={toggleSprintSort} />
                             </tr>
                         </thead>
                         <tbody>
-                            {metrics.sprintStats.map((sprint, i) => {
-                                // Calculate total idle days for this sprint
-                                const sprintTasks = data.filter(t => t.Sprint === sprint.name);
-                                const developers = Array.from(new Set(sprintTasks.map(t => t.AssigneeName).filter(Boolean)));
-                                
-                                // Determine Sprint Range
-                                let sStart = Infinity;
-                                let sEnd = -Infinity;
-                                const sprintDates = sprintTasks.find(t => t.SprintStart && (t.SprintEnd || t.Sprint));
-                                if (sprintDates && sprintDates.SprintStart) {
-                                    sStart = new Date(sprintDates.SprintStart).getTime();
-                                    sEnd = new Date(sprintDates.SprintEnd || new Date()).getTime();
-                                } else {
-                                    sprintTasks.forEach(t => {
-                                        t.Stages.forEach(s => {
-                                            const st = new Date(s.start).getTime();
-                                            const en = new Date(s.end).getTime();
-                                            if (st < sStart) sStart = st;
-                                            if (en > sEnd) sEnd = en;
-                                        });
-                                    });
-                                }
-
-                                // Idle = work day (from settings) with 0 tasks "in progress"; days off excluded from pool
-                                const IN_PROGRESS_KEYWORDS = ['in progress', 'in development'];
-                                let totalIdleDays = 0;
-
-                                if (sStart !== Infinity && sEnd !== -Infinity) {
-                                    const startDate = new Date(sStart);
-                                    startDate.setHours(0, 0, 0, 0);
-                                    const endDate = new Date(sEnd);
-                                    endDate.setHours(23, 59, 59, 999);
-                                    const todayEnd = new Date();
-                                    todayEnd.setHours(23, 59, 59, 999);
-                                    const effectiveEnd = endDate > todayEnd ? todayEnd : endDate;
-
-                                    developers.forEach(dev => {
-                                        const devTasks = sprintTasks.filter(t => t.AssigneeName === dev || t.Stages.some(s => s.assignee === dev));
-                                        const current = new Date(startDate);
-                                        while (current <= effectiveEnd) {
-                                            if (!workDays.includes(current.getDay())) {
-                                                current.setDate(current.getDate() + 1);
-                                                continue;
-                                            }
-                                            const dayStart = new Date(current);
-                                            dayStart.setHours(0, 0, 0, 0);
-                                            const dayEnd = new Date(current);
-                                            dayEnd.setHours(23, 59, 59, 999);
-                                            let isWorking = false;
-                                            for (const task of devTasks) {
-                                                for (const stage of task.Stages) {
-                                                    const s = stage.status.toLowerCase();
-                                                    if (IN_PROGRESS_KEYWORDS.some(k => s.includes(k))) {
-                                                        const stageStart = new Date(stage.start);
-                                                        const stageEnd = stage.end ? new Date(stage.end) : new Date();
-                                                        if (dayStart <= stageEnd && dayEnd >= stageStart) {
-                                                            isWorking = true;
-                                                            break;
-                                                        }
-                                                    }
-                                                }
-                                                if (isWorking) break;
-                                            }
-                                            if (!isWorking) totalIdleDays++;
-                                            current.setDate(current.getDate() + 1);
-                                        }
-                                    });
-                                }
-
-                                return (
-                                    <tr key={i} onClick={() => { setSelectedSprint({ name: sprint.name, tasks: sprintTasks }); onSprintSelect?.(sprint.name); }} style={{ cursor: 'pointer' }}>
-                                        <td style={{ fontWeight: 600 }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                                {sprint.name} <ChevronRight size={14} color="var(--text-muted)" />
-                                            </div>
-                                        </td>
-                                        <td style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>{formatSprintRange(sStart, sEnd)}</td>
-                                        <td>{sprint.tasks}</td>
-                                        <td>{totalIdleDays} d</td>
-                                        <td>{sprint.tasks > 0 ? round1dec(totalIdleDays / sprint.tasks) : 0} d</td>
-                                    </tr>
-                                );
-                            })}
+                            {sortedSprintRows.map((row) => (
+                                <tr key={row.name} onClick={() => { setSelectedSprint({ name: row.name, tasks: row.sprintTasks }); onSprintSelect?.(row.name); }} style={{ cursor: 'pointer' }}>
+                                    <td style={{ fontWeight: 600 }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                            {row.name} <ChevronRight size={14} color="var(--text-muted)" />
+                                        </div>
+                                    </td>
+                                    <td style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>{formatSprintRange(row.sStart, row.sEnd)}</td>
+                                    <td>{row.tasks}</td>
+                                    <td>{row.totalIdleDays} d</td>
+                                    <td>{row.avgIdle} d</td>
+                                </tr>
+                            ))}
                         </tbody>
                     </table>
                 </div>
             </div>
         );
     }
-
-    // Sprint Detail View logic
-    const sprintDates = selectedSprint.tasks.find(t => t.SprintStart && (t.SprintEnd || t.Sprint));
-    let sStart = Infinity;
-    let sEnd = -Infinity;
-
-    if (sprintDates && sprintDates.SprintStart) {
-        sStart = new Date(sprintDates.SprintStart).getTime();
-        sEnd = new Date(sprintDates.SprintEnd || new Date()).getTime();
-    } else {
-        selectedSprint.tasks.forEach(t => {
-            t.Stages.forEach(s => {
-                const st = new Date(s.start).getTime();
-                const en = new Date(s.end).getTime();
-                if (st < sStart) sStart = st;
-                if (en > sEnd) sEnd = en;
-            });
-        });
-    }
-
-    const devData = selectedSprint.tasks.reduce((acc, task) => {
-        task.Stages.forEach(stage => {
-            const status = stage.status.toLowerCase();
-            const activeStatuses = ['in progress', 'code review', 'ready for qa'];
-            if (activeStatuses.includes(status)) {
-                const dev = stage.assignee || task.AssigneeName;
-                if (!acc[dev]) acc[dev] = { name: dev, intervals: [], taskIntervals: {}, tasks: new Set() };
-
-                const st = new Date(stage.start).getTime();
-                const en = new Date(stage.end).getTime();
-
-                const clipStart = Math.max(st, sStart);
-                const clipEnd = Math.min(en, sEnd);
-
-                if (clipStart < clipEnd) {
-                    acc[dev].intervals.push({ start: clipStart, end: clipEnd });
-                    if (!acc[dev].taskIntervals[task.ID]) acc[dev].taskIntervals[task.ID] = [];
-                    acc[dev].taskIntervals[task.ID].push({ start: clipStart, end: clipEnd });
-                }
-                acc[dev].tasks.add(task.ID);
-            }
-        });
-        return acc;
-    }, {} as Record<string, { name: string, intervals: { start: number, end: number }[], taskIntervals: Record<string, { start: number, end: number }[]>, tasks: Set<string> }>);
-
-    // Filter for tasks where time spent > story points
-    // Calculate actual time from stages (matching what's displayed in the UI)
-    const tasksExceedingTime = selectedSprint.tasks.filter(task => {
-        if (!task.StoryPoints || task.StoryPoints <= 0) return false;
-
-        // Calculate time from active stages within sprint boundaries
-        const taskIntervals: { start: number, end: number }[] = [];
-        task.Stages.forEach(stage => {
-            const status = stage.status.toLowerCase();
-            const activeStatuses = ['in progress', 'code review', 'ready for qa'];
-            if (activeStatuses.includes(status)) {
-                const st = new Date(stage.start).getTime();
-                const en = new Date(stage.end).getTime();
-
-                const clipStart = Math.max(st, sStart);
-                const clipEnd = Math.min(en, sEnd);
-
-                if (clipStart < clipEnd) {
-                    taskIntervals.push({ start: clipStart, end: clipEnd });
-                }
-            }
-        });
-
-        const timeInDays = workDayDurationFromIntervals(taskIntervals, workDays);
-        return timeInDays > task.StoryPoints;
-    });
-
-    const displayTasks = showTimeExceededOnly ? tasksExceedingTime : selectedSprint.tasks;
-
-    // Recalculate devData based on filtered tasks
-    const filteredDevData = displayTasks.reduce((acc, task) => {
-        task.Stages.forEach(stage => {
-            const status = stage.status.toLowerCase();
-            const activeStatuses = ['in progress', 'code review', 'ready for qa'];
-            if (activeStatuses.includes(status)) {
-                const dev = stage.assignee || task.AssigneeName;
-                if (!acc[dev]) acc[dev] = { name: dev, intervals: [], taskIntervals: {}, tasks: new Set() };
-
-                const st = new Date(stage.start).getTime();
-                const en = new Date(stage.end).getTime();
-
-                const clipStart = Math.max(st, sStart);
-                const clipEnd = Math.min(en, sEnd);
-
-                if (clipStart < clipEnd) {
-                    acc[dev].intervals.push({ start: clipStart, end: clipEnd });
-                    if (!acc[dev].taskIntervals[task.ID]) acc[dev].taskIntervals[task.ID] = [];
-                    acc[dev].taskIntervals[task.ID].push({ start: clipStart, end: clipEnd });
-                }
-                acc[dev].tasks.add(task.ID);
-            }
-        });
-        return acc;
-    }, {} as Record<string, { name: string, intervals: { start: number, end: number }[], taskIntervals: Record<string, { start: number, end: number }[]>, tasks: Set<string> }>);
-
-    const displayDevData = showTimeExceededOnly ? filteredDevData : devData;
-    const selectedDevDataFromDisplay = ganttDevFilter ? displayDevData[ganttDevFilter] : null;
-
-    // Calculate count based on dev filter
-    const exceedingTaskCount = ganttDevFilter && selectedDevDataFromDisplay
-        ? selectedDevDataFromDisplay.tasks.size
-        : tasksExceedingTime.length;
 
     return (
         <div className="card glass-morphism">
@@ -387,114 +408,56 @@ const SprintView: React.FC<SprintViewProps> = ({ data, metrics, initialSprint, i
                             <table>
                                 <thead>
                                     <tr>
-                                        <th>Developer</th>
-                                        <th>Tasks</th>
-                                        <th>
-                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
-                                                Idle Days
-                                                <span
-                                                    onMouseEnter={() => setIdleTooltipAt('column')}
-                                                    onMouseLeave={() => setIdleTooltipAt(null)}
-                                                    style={{ display: 'inline-flex', cursor: 'help', position: 'relative', width: 14, height: 14, flexShrink: 0, marginLeft: '4px' }}
-                                                >
-                                                    <Info size={14} style={{ color: 'var(--text-muted)', pointerEvents: 'none' }} />
-                                                    {idleTooltipAt === 'column' && (
-                                                        <span
-                                                            role="tooltip"
-                                                            style={{
-                                                                position: 'absolute',
-                                                                left: 0,
-                                                                top: '100%',
-                                                                marginTop: '8px',
-                                                                padding: '0.75rem',
-                                                                background: '#1e293b',
-                                                                border: '1px solid var(--border)',
-                                                                borderRadius: '8px',
-                                                                fontSize: '0.8rem',
-                                                                color: '#cbd5e1',
-                                                                width: '320px',
-                                                                whiteSpace: 'normal',
-                                                                zIndex: 100,
-                                                                boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
-                                                                pointerEvents: 'none',
-                                                                lineHeight: '1.5'
-                                                            }}
-                                                        >
-                                                            {IDLE_DAYS_TOOLTIP}
-                                                        </span>
-                                                    )}
-                                                </span>
+                                        <SortableHeader label="Developer" sortKey="name" sort={devIdleSort} onToggle={toggleDevIdleSort} />
+                                        <SortableHeader label="Tasks" sortKey="taskCount" sort={devIdleSort} onToggle={toggleDevIdleSort} />
+                                        <SortableHeader label="Idle Days" sortKey="idleDays" sort={devIdleSort} onToggle={toggleDevIdleSort}>
+                                            <span
+                                                onMouseEnter={() => setIdleTooltipAt('column')}
+                                                onMouseLeave={() => setIdleTooltipAt(null)}
+                                                style={{ display: 'inline-flex', cursor: 'help', position: 'relative', width: 14, height: 14, flexShrink: 0, marginLeft: '4px' }}
+                                            >
+                                                <Info size={14} style={{ color: 'var(--text-muted)', pointerEvents: 'none' }} />
+                                                {idleTooltipAt === 'column' && (
+                                                    <span
+                                                        role="tooltip"
+                                                        style={{
+                                                            position: 'absolute', left: 0, top: '100%', marginTop: '8px', padding: '0.75rem',
+                                                            background: '#1e293b', border: '1px solid var(--border)', borderRadius: '8px',
+                                                            fontSize: '0.8rem', color: '#cbd5e1', width: '320px', whiteSpace: 'normal',
+                                                            zIndex: 100, boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)', pointerEvents: 'none', lineHeight: '1.5'
+                                                        }}
+                                                    >
+                                                        {IDLE_DAYS_TOOLTIP}
+                                                    </span>
+                                                )}
                                             </span>
-                                        </th>
+                                        </SortableHeader>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {Object.values(displayDevData).sort((a, b) => a.name.localeCompare(b.name)).map((stats: any) => {
-                                        // Idle days = work days (from settings) with 0 tasks in progress; days off excluded
-                                        const devTasks = selectedSprint.tasks.filter(t => (t.AssigneeName === stats.name || t.Stages.some(s => s.assignee === stats.name)));
-                                        const IN_PROGRESS_KEYWORDS = ['in progress', 'in development'];
-                                        const idleDates: Date[] = [];
-
-                                        const startDate = new Date(sStart);
-                                        startDate.setHours(0, 0, 0, 0);
-                                        const endDate = new Date(sEnd);
-                                        endDate.setHours(23, 59, 59, 999);
-                                        const todayEnd = new Date();
-                                        todayEnd.setHours(23, 59, 59, 999);
-                                        const effectiveEnd = endDate > todayEnd ? todayEnd : endDate;
-                                        const current = new Date(startDate);
-                                        while (current <= effectiveEnd) {
-                                            if (!workDays.includes(current.getDay())) {
-                                                current.setDate(current.getDate() + 1);
-                                                continue;
-                                            }
-                                            const dayStart = new Date(current);
-                                            dayStart.setHours(0, 0, 0, 0);
-                                            const dayEnd = new Date(current);
-                                            dayEnd.setHours(23, 59, 59, 999);
-                                            let isWorking = false;
-                                            for (const task of devTasks) {
-                                                for (const stage of task.Stages) {
-                                                    const s = stage.status.toLowerCase();
-                                                    if (IN_PROGRESS_KEYWORDS.some(k => s.includes(k))) {
-                                                        const stageStart = new Date(stage.start);
-                                                        const stageEnd = stage.end ? new Date(stage.end) : new Date();
-                                                        if (dayStart <= stageEnd && dayEnd >= stageStart) {
-                                                            isWorking = true;
-                                                            break;
-                                                        }
-                                                    }
-                                                }
-                                                if (isWorking) break;
-                                            }
-                                            if (!isWorking) idleDates.push(new Date(current));
-                                            current.setDate(current.getDate() + 1);
-                                        }
-
-                                        return (
-                                            <tr
-                                                key={stats.name}
-                                                onClick={() => { const next = ganttDevFilter === stats.name ? null : stats.name; setGanttDevFilter(next); onUserSelect?.(next); }}
-                                                style={{ cursor: 'pointer', background: ganttDevFilter === stats.name ? 'rgba(99, 102, 241, 0.15)' : 'transparent' }}
-                                            >
-                                                <td style={{ fontWeight: 600 }}>{stats.name}</td>
-                                                <td>{stats.tasks.size}</td>
-                                                <td>
-                                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${idleDates.length > 5 ? 'bg-red-500/10 text-red-400' :
-                                                        idleDates.length > 2 ? 'bg-amber-500/10 text-amber-400' :
-                                                            'bg-green-500/10 text-green-400'
-                                                        }`}>
-                                                        {idleDates.length} days
-                                                    </span>
-                                                    {idleDates.length > 0 && (
-                                                        <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '2px' }} title="Idle day numbers (day of month)">
-                                                            ({formatIdleDayRanges(idleDates)})
-                                                        </div>
-                                                    )}
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
+                                    {sortedDevIdleRows.map((row) => (
+                                        <tr
+                                            key={row.name}
+                                            onClick={() => { const next = ganttDevFilter === row.name ? null : row.name; setGanttDevFilter(next); onUserSelect?.(next); }}
+                                            style={{ cursor: 'pointer', background: ganttDevFilter === row.name ? 'rgba(99, 102, 241, 0.15)' : 'transparent' }}
+                                        >
+                                            <td style={{ fontWeight: 600 }}>{row.name}</td>
+                                            <td>{row.taskCount}</td>
+                                            <td>
+                                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${row.idleDays > 5 ? 'bg-red-500/10 text-red-400' :
+                                                    row.idleDays > 2 ? 'bg-amber-500/10 text-amber-400' :
+                                                        'bg-green-500/10 text-green-400'
+                                                    }`}>
+                                                    {row.idleDays} days
+                                                </span>
+                                                {row.idleDays > 0 && (
+                                                    <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '2px' }} title="Idle day numbers (day of month)">
+                                                        ({formatIdleDayRanges(row.idleDates)})
+                                                    </div>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    ))}
                                 </tbody>
                             </table>
                         </div>
@@ -515,72 +478,55 @@ const SprintView: React.FC<SprintViewProps> = ({ data, metrics, initialSprint, i
                                 <table>
                                     <thead>
                                         <tr>
-                                            <th>Task</th>
-                                            <th>Points</th>
-                                            <th style={{ whiteSpace: 'nowrap' }}>
-                                                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
-                                                    Time Spent
-                                                    <span
-                                                        onMouseEnter={() => setIdleTooltipAt('timeSpent')}
-                                                        onMouseLeave={() => setIdleTooltipAt(null)}
-                                                        style={{ display: 'inline-flex', cursor: 'help', position: 'relative', width: 14, height: 14, flexShrink: 0 }}
-                                                    >
-                                                        <Info size={14} style={{ color: 'var(--text-muted)', pointerEvents: 'none' }} />
-                                                        {idleTooltipAt === 'timeSpent' && (
-                                                            <span
-                                                                role="tooltip"
-                                                                style={{
-                                                                    position: 'absolute',
-                                                                    right: 0,
-                                                                    top: '100%',
-                                                                    marginTop: '8px',
-                                                                    padding: '0.75rem',
-                                                                    background: '#1e293b',
-                                                                    border: '1px solid var(--border)',
-                                                                    borderRadius: '8px',
-                                                                    fontSize: '0.8rem',
-                                                                    color: '#cbd5e1',
-                                                                    width: '280px',
-                                                                    whiteSpace: 'normal',
-                                                                    zIndex: 100,
-                                                                    boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
-                                                                    pointerEvents: 'none',
-                                                                    lineHeight: '1.5',
-                                                                    fontWeight: 400,
-                                                                    textAlign: 'left'
-                                                                }}
-                                                            >
-                                                                {TIME_SPENT_TOOLTIP}
-                                                            </span>
-                                                        )}
-                                                    </span>
-                                                </div>
-                                            </th>
+                                            <SortableHeader label="Task" sortKey="taskId" sort={devTaskSort} onToggle={toggleDevTaskSort} />
+                                            <SortableHeader label="Epic" sortKey="epic" sort={devTaskSort} onToggle={toggleDevTaskSort} />
+                                            <SortableHeader label="Points" sortKey="points" sort={devTaskSort} onToggle={toggleDevTaskSort} />
+                                            <SortableHeader label="Time Spent" sortKey="timeSpent" sort={devTaskSort} onToggle={toggleDevTaskSort}>
+                                                <span
+                                                    onMouseEnter={() => setIdleTooltipAt('timeSpent')}
+                                                    onMouseLeave={() => setIdleTooltipAt(null)}
+                                                    style={{ display: 'inline-flex', cursor: 'help', position: 'relative', width: 14, height: 14, flexShrink: 0 }}
+                                                >
+                                                    <Info size={14} style={{ color: 'var(--text-muted)', pointerEvents: 'none' }} />
+                                                    {idleTooltipAt === 'timeSpent' && (
+                                                        <span
+                                                            role="tooltip"
+                                                            style={{
+                                                                position: 'absolute', right: 0, top: '100%', marginTop: '8px', padding: '0.75rem',
+                                                                background: '#1e293b', border: '1px solid var(--border)', borderRadius: '8px',
+                                                                fontSize: '0.8rem', color: '#cbd5e1', width: '280px', whiteSpace: 'normal',
+                                                                zIndex: 100, boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+                                                                pointerEvents: 'none', lineHeight: '1.5', fontWeight: 400, textAlign: 'left'
+                                                            }}
+                                                        >
+                                                            {TIME_SPENT_TOOLTIP}
+                                                        </span>
+                                                    )}
+                                                </span>
+                                            </SortableHeader>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {Object.entries(selectedDevDataFromDisplay.taskIntervals).map(([taskId, intervals]: any) => {
-                                            const task = selectedSprint.tasks.find(t => t.ID === taskId);
-                                            return (
-                                                <tr key={taskId}>
-                                                    <td style={{ fontSize: '0.8rem' }}>
-                                                        <a
-                                                            href={task?.Link}
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                            style={{ fontWeight: 600, color: 'var(--primary)', textDecoration: 'none', display: 'block', marginBottom: '4px' }}
-                                                            onMouseEnter={(e) => e.currentTarget.style.textDecoration = 'underline'}
-                                                            onMouseLeave={(e) => e.currentTarget.style.textDecoration = 'none'}
-                                                        >
-                                                            {taskId}
-                                                        </a>
-                                                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{task?.Name}</div>
-                                                    </td>
-                                                    <td style={{ fontWeight: 600 }}>{task?.StoryPoints || '-'}</td>
-                                                    <td>{round1dec(workDayDurationFromIntervals(intervals, workDays))} d</td>
-                                                </tr>
-                                            );
-                                        })}
+                                        {sortedDevTaskRows.map((row) => (
+                                            <tr key={row.taskId}>
+                                                <td style={{ fontSize: '0.8rem' }}>
+                                                    <a
+                                                        href={row.task?.Link}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        style={{ fontWeight: 600, color: 'var(--primary)', textDecoration: 'none', display: 'block', marginBottom: '4px' }}
+                                                        onMouseEnter={(e) => e.currentTarget.style.textDecoration = 'underline'}
+                                                        onMouseLeave={(e) => e.currentTarget.style.textDecoration = 'none'}
+                                                    >
+                                                        {row.taskId}
+                                                    </a>
+                                                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{row.task?.Name}</div>
+                                                </td>
+                                                <td style={{ fontSize: '0.75rem', color: 'var(--text-muted)', maxWidth: '150px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={row.epic || '–'}>{row.epic || '–'}</td>
+                                                <td style={{ fontWeight: 600 }}>{row.points || '-'}</td>
+                                                <td>{row.timeSpent} d</td>
+                                            </tr>
+                                        ))}
                                     </tbody>
                                 </table>
                             </div>

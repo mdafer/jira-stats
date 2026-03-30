@@ -16,10 +16,9 @@ export default defineConfig(({ mode }) => {
     plugins: [react()],
     server: {
       proxy: {
-        '/jira': {
-          target: env.VITE_JIRA_DOMAIN,
+        '/api': {
+          target: `http://localhost:${env.SERVER_PORT || 3001}`,
           changeOrigin: true,
-          rewrite: (path) => path.replace(/^\/jira/, ''),
         },
       },
     },

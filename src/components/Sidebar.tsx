@@ -6,7 +6,8 @@ import {
     Layers,
     CheckCircle2,
     Settings,
-    Clock
+    Clock,
+    GanttChartSquare
 } from 'lucide-react';
 import type { TabType } from '../constants/theme';
 import { TABS } from '../constants/theme';
@@ -40,6 +41,9 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
                     </div>
                     <div className={`nav-item ${activeTab === TABS.IDLE_TIME ? 'active' : ''}`} onClick={() => setActiveTab(TABS.IDLE_TIME)}>
                         <Clock size={18} /> Idle Time
+                    </div>
+                    <div className={`nav-item ${activeTab === TABS.TIMELINE ? 'active' : ''}`} onClick={() => setActiveTab(TABS.TIMELINE)}>
+                        <GanttChartSquare size={18} /> Epic Timeline
                     </div>
                     <div className={`nav-item ${activeTab === TABS.SETTINGS ? 'active' : ''}`} onClick={() => setActiveTab(TABS.SETTINGS)}>
                         <Settings size={18} /> Settings

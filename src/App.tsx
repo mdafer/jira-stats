@@ -12,6 +12,7 @@ import ErrorMessage from './components/ErrorMessage';
 import SettingsView from './components/SettingsView';
 
 import IdleTimeView from './components/IdleTimeView';
+import EpicTimeline from './components/EpicTimeline';
 
 import { useSettings } from './hooks/useSettings';
 
@@ -144,6 +145,7 @@ const App: React.FC = () => {
               {activeTab === TABS.SPRINTS && <SprintView data={data} metrics={metrics} initialSprint={sprintToView} initialUser={userToFilter} workDays={settings.workDays} onSprintSelect={handleNavigateToSprint} onUserSelect={handleUserSelectInSprint} />}
               {activeTab === TABS.TASKS && <IssueExplorer data={data} />}
               {activeTab === TABS.IDLE_TIME && <IdleTimeView data={data} onNavigateToSprint={handleNavigateToSprint} workDays={settings.workDays} />}
+              {activeTab === TABS.TIMELINE && <EpicTimeline data={data} onNavigateToSprint={handleNavigateToSprint} />}
             </>
           )
         )}

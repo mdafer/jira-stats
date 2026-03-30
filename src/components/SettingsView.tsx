@@ -1,6 +1,6 @@
 import React from 'react';
 import { CacheStatus } from './CacheStatus';
-import type { CacheMetadata } from '../services/cacheService';
+import type { CacheMetadata } from '../services/jiraService';
 
 interface SettingsViewProps {
     cacheMetadata: CacheMetadata | null;
@@ -21,10 +21,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
     workDays,
     onUpdateWorkDays
 }) => {
-    const cacheTTL = Number(import.meta.env.VITE_CACHE_TTL_MINUTES) || 720;
-    const cacheTTLText = cacheTTL >= 60 
-        ? `${cacheTTL / 60} hour${cacheTTL / 60 > 1 ? 's' : ''}` 
-        : `${cacheTTL} minutes`;
+    const cacheTTLText = '12 hours';
 
     return (
         <div className="settings-container">
@@ -119,9 +116,9 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                         </span>
                     </div>
                     <div className="info-card" style={{ gridColumn: '1 / -1' }}>
-                        <span className="info-label">Jira API Domain</span>
+                        <span className="info-label">API Endpoint</span>
                         <span className="info-value mono">
-                            {import.meta.env.VITE_JIRA_DOMAIN || 'https://mehe-modernization-division.atlassian.net'}
+                            {import.meta.env.VITE_API_URL || '/api'}
                         </span>
                     </div>
                 </div>

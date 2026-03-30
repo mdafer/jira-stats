@@ -4,18 +4,12 @@ FROM node:24-alpine AS build
 WORKDIR /app
 
 # Define build arguments for Vite
-ARG VITE_JIRA_DOMAIN
-ARG VITE_JIRA_EMAIL
-ARG VITE_JIRA_TOKEN
-ARG VITE_JIRA_JQL
 ARG VITE_PROJECT_TITLE
+ARG VITE_API_URL=/api
 
 # Set them as environment variables so Vite can see them during 'yarn build'
-ENV VITE_JIRA_DOMAIN=$VITE_JIRA_DOMAIN
-ENV VITE_JIRA_EMAIL=$VITE_JIRA_EMAIL
-ENV VITE_JIRA_TOKEN=$VITE_JIRA_TOKEN
-ENV VITE_JIRA_JQL=$VITE_JIRA_JQL
 ENV VITE_PROJECT_TITLE=$VITE_PROJECT_TITLE
+ENV VITE_API_URL=$VITE_API_URL
 
 # Install dependencies using yarn
 COPY package.json yarn.lock* ./

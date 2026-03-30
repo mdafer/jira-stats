@@ -23,24 +23,8 @@ export interface JiraTask {
     StoryPoints: number;
 }
 
-export interface SelectedSprintInfo {
-    name: string;
-    tasks: JiraTask[];
-}
-
-export interface MetricStats {
-    time: number;
-    tasks: number;
-    points: number;
-}
-
-export interface Metrics {
+export interface CacheMetadata {
+    lastFetch: number;
     totalTasks: number;
-    completedTasks: number;
-    completionRate: number;
-    totalTimeSpent: number;
-    totalStoryPoints: number;
-    devStats: (MetricStats & { name: string })[];
-    sprintStats: (MetricStats & { name: string })[];
-    statusStats: { name: string; value: number }[];
+    jql: string;
 }

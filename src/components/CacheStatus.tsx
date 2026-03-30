@@ -1,5 +1,5 @@
 import { RefreshCw, Database, Clock, AlertCircle } from 'lucide-react';
-import type { CacheMetadata } from '../services/cacheService';
+import type { CacheMetadata } from '../services/jiraService';
 
 interface CacheStatusProps {
     cacheMetadata: CacheMetadata | null;

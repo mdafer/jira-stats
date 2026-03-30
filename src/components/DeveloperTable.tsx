@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { ExternalLink } from 'lucide-react';
 import type { Metrics, JiraTask } from '../types/jira';
 import { round1dec } from '../utils/dateUtils';
+import { useTableSort } from '../hooks/useTableSort';
+import SortableHeader from './SortableHeader';
 
 interface DeveloperTableProps {
     metrics: Metrics;
@@ -12,13 +14,20 @@ interface DeveloperTableProps {
 const DeveloperTable: React.FC<DeveloperTableProps> = ({ metrics, data, onNavigateToSprint }) => {
     // Get all sprints for each developer
     const getDevSprints = (devName: string) => {
-        const devTasks = data.filter(t => 
-            t.AssigneeName === devName || 
+        const devTasks = data.filter(t =>
+            t.AssigneeName === devName ||
             t.Stages.some(s => s.assignee === devName)
         );
         const sprints = Array.from(new Set(devTasks.map(t => t.Sprint).filter(Boolean)));
         return sprints.sort();
     };
+
+    const devRows = useMemo(() => metrics.devStats.map(dev => ({
+        ...dev,
+        avgDevTime: dev.tasks > 0 ? round1dec(dev.time / dev.tasks) : 0
+    })), [metrics.devStats]);
+
+    const { sorted: sortedDevRows, sort, toggleSort } = useTableSort(devRows, 'points', 'desc');
 
     return (
         <div className="card glass-morphism">
@@ -27,22 +36,22 @@ const DeveloperTable: React.FC<DeveloperTableProps> = ({ metrics, data, onNaviga
                 <table>
                     <thead>
                         <tr>
-                            <th>Developer</th>
-                            <th>Tasks</th>
-                            <th>Points</th>
-                            <th>Avg Dev Time</th>
+                            <SortableHeader label="Developer" sortKey="name" sort={sort} onToggle={toggleSort} />
+                            <SortableHeader label="Tasks" sortKey="tasks" sort={sort} onToggle={toggleSort} />
+                            <SortableHeader label="Points" sortKey="points" sort={sort} onToggle={toggleSort} />
+                            <SortableHeader label="Avg Dev Time" sortKey="avgDevTime" sort={sort} onToggle={toggleSort} />
                             <th>View Sprints</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {metrics.devStats.sort((a, b) => b.points - a.points).map((dev, i) => {
+                        {sortedDevRows.map((dev, i) => {
                             const devSprints = getDevSprints(dev.name);
                             return (
                                 <tr key={i}>
                                     <td style={{ fontWeight: 600 }}>{dev.name}</td>
                                     <td>{dev.tasks}</td>
                                     <td>{dev.points}</td>
-                                    <td>{dev.tasks > 0 ? round1dec(dev.time / dev.tasks) : 0} d</td>
+                                    <td>{dev.avgDevTime} d</td>
                                     <td>
                                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
                                             {devSprints.map(sprint => (

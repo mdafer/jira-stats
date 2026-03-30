@@ -3,6 +3,8 @@ import { createPortal } from 'react-dom';
 import { Search, Info } from 'lucide-react';
 import type { JiraTask } from '../types/jira';
 import { getDoneAt } from '../utils/jiraUtils';
+import { useTableSort } from '../hooks/useTableSort';
+import SortableHeader from './SortableHeader';
 
 const inputStyle = { background: '#0f172a', border: '1px solid var(--border)', color: 'white', padding: '0.5rem 0.75rem', borderRadius: '8px' };
 
@@ -75,11 +77,13 @@ const IssueExplorer: React.FC<IssueExplorerProps> = ({ data }) => {
         if (searchQuery) {
             const q = searchQuery.toLowerCase();
             out = out.filter(t =>
-                t.ID.toLowerCase().includes(q) || t.Name.toLowerCase().includes(q) || t.AssigneeName.toLowerCase().includes(q)
+                t.ID.toLowerCase().includes(q) || t.Name.toLowerCase().includes(q) || t.AssigneeName.toLowerCase().includes(q) || t.Epic.toLowerCase().includes(q)
             );
         }
         return out;
     }, [data, searchQuery, devFilter, startDate, endDate]);
+
+    const { sorted: sortedData, sort, toggleSort } = useTableSort(filteredData);
 
     return (
         <div className="card glass-morphism">
@@ -169,19 +173,21 @@ const IssueExplorer: React.FC<IssueExplorerProps> = ({ data }) => {
                 <table>
                     <thead>
                         <tr>
-                            <th>Key</th>
-                            <th>Summary</th>
-                            <th>Developer</th>
-                            <th>Points</th>
-                            <th>Status</th>
-                            <th>Sprint</th>
+                            <SortableHeader label="Key" sortKey="ID" sort={sort} onToggle={toggleSort} />
+                            <SortableHeader label="Summary" sortKey="Name" sort={sort} onToggle={toggleSort} />
+                            <SortableHeader label="Epic" sortKey="Epic" sort={sort} onToggle={toggleSort} />
+                            <SortableHeader label="Developer" sortKey="AssigneeName" sort={sort} onToggle={toggleSort} />
+                            <SortableHeader label="Points" sortKey="StoryPoints" sort={sort} onToggle={toggleSort} />
+                            <SortableHeader label="Status" sortKey="Status" sort={sort} onToggle={toggleSort} />
+                            <SortableHeader label="Sprint" sortKey="Sprint" sort={sort} onToggle={toggleSort} />
                         </tr>
                     </thead>
                     <tbody>
-                        {filteredData.slice(0, 100).map((task, i) => (
+                        {sortedData.slice(0, 100).map((task, i) => (
                             <tr key={i}>
                                 <td><a href={task.Link} target="_blank" rel="noreferrer" style={{ color: 'var(--primary)', textDecoration: 'none', fontWeight: 600 }}>{task.ID}</a></td>
                                 <td style={{ maxWidth: '400px', wordBreak: 'break-word', whiteSpace: 'normal' }}>{task.Name}</td>
+                                <td style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: task.Epic ? 'var(--text-main)' : 'var(--text-muted)' }} title={task.Epic || '–'}>{task.Epic || '–'}</td>
                                 <td>{task.AssigneeName}</td>
                                 <td style={{ fontWeight: 700 }}>{task.StoryPoints || '-'}</td>
                                 <td>

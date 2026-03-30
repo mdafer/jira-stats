@@ -110,7 +110,7 @@ const GanttChart: React.FC<GanttChartProps> = ({ tasks, sStart, sEnd, ganttDevFi
                             <div key={task.ID} style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: '1rem', marginBottom: '1.25rem', alignItems: 'center', position: 'relative', zIndex: 1 }}>
                                 <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'flex', gap: '0.5rem', lineHeight: '1.4' }}>
                                     <a href={task.Link} target="_blank" rel="noreferrer" style={{ color: 'var(--primary)', textDecoration: 'none', flexShrink: 0 }}>{task.ID}</a>
-                                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.Name} (Pts: {task.StoryPoints || '-'})</span>
+                                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.Epic ? `[${task.Epic}] ` : ''}{task.Name} (Pts: {task.StoryPoints || '-'})</span>
                                 </div>
                                 <div style={{ height: '20px', position: 'relative', borderRadius: '4px', background: 'rgba(30, 41, 59, 0.5)', overflow: 'hidden' }}>
                                     {(() => {
@@ -152,7 +152,7 @@ const GanttChart: React.FC<GanttChartProps> = ({ tasks, sStart, sEnd, ganttDevFi
                                                         height: '100%',
                                                         borderRight: '1px solid rgba(0,0,0,0.1)'
                                                     }}
-                                                    title={`${stage.status}: ${round1dec(stage.duration)} days (${stage.assignee})\n${new Date(stage.start).toLocaleDateString()} - ${new Date(stage.end).toLocaleDateString()}\nStory points: ${task.StoryPoints ?? '-'}`}
+                                                    title={`${stage.status}: ${round1dec(stage.duration)} days (${stage.assignee})\n${new Date(stage.start).toLocaleDateString()} - ${new Date(stage.end).toLocaleDateString()}\nEpic: ${task.Epic || '–'}\nStory points: ${task.StoryPoints ?? '-'}`}
                                                 />
                                             );
                                         });
