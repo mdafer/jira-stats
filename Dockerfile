@@ -22,8 +22,8 @@ RUN yarn build
 # Production stage
 FROM nginx:stable-alpine
 
-# Copy nginx config
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# Copy nginx config template (envsubst replaces ${SERVER_PORT} at container start)
+COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 
 # Copy build output to nginx
 COPY --from=build /app/dist /usr/share/nginx/html
