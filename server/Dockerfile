@@ -9,6 +9,4 @@ COPY server/ ./server/
 
 RUN mkdir -p server/data
 
-EXPOSE 3001
-
 CMD ["npx", "tsx", "server/index.ts"]
