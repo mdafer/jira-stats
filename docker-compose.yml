@@ -4,7 +4,7 @@ services:
       context: .
       dockerfile: server/Dockerfile
     ports:
-      - "${SERVER_PORT:-3001}:3001"
+      - "${SERVER_PORT:-3001}:${SERVER_PORT:-3001}"
     env_file:
       - .env
     volumes:
@@ -19,7 +19,7 @@ services:
         - VITE_API_URL=/api
         - VITE_PROJECT_TITLE=${VITE_PROJECT_TITLE}
     ports:
-      - "${VITE_PORT:-8080}:80"
+      - "${VITE_PORT:-8080}:${VITE_PORT:-8080}"
     depends_on:
       - backend
     restart: unless-stopped
