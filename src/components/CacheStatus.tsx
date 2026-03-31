@@ -1,9 +1,8 @@
-import { RefreshCw, Database, Clock, AlertCircle } from 'lucide-react';
+import { RefreshCw, Database, AlertCircle } from 'lucide-react';
 import type { CacheMetadata } from '../services/jiraService';
 
 interface CacheStatusProps {
     cacheMetadata: CacheMetadata | null;
-    isFromCache: boolean;
     refreshing: boolean;
     onRefresh: () => void;
     onClearCache: () => void;
@@ -11,7 +10,6 @@ interface CacheStatusProps {
 
 export const CacheStatus: React.FC<CacheStatusProps> = ({
     cacheMetadata,
-    isFromCache,
     refreshing,
     onRefresh,
     onClearCache
@@ -35,22 +33,12 @@ export const CacheStatus: React.FC<CacheStatusProps> = ({
     return (
         <div className="cache-status-container">
             {/* Cache Status Indicator */}
-            <div className={`status-indicator ${isFromCache ? 'cache-active' : 'live-active'}`}>
+            <div className="status-indicator cache-active">
                 <Database size={16} />
                 <span style={{ fontWeight: 500 }}>
-                    {isFromCache ? 'From Cache' : 'Live Data'}
+                    {cacheMetadata ? `Last synced ${formatTimestamp(cacheMetadata.lastFetch)}` : 'No data cached'}
                 </span>
             </div>
-
-            {/* Last Updated */}
-            {cacheMetadata && (
-                <div className="status-info">
-                    <Clock size={16} />
-                    <span>
-                        Updated {formatTimestamp(cacheMetadata.lastFetch)}
-                    </span>
-                </div>
-            )}
 
             {/* Task Count */}
             {cacheMetadata && (

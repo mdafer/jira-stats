@@ -17,7 +17,7 @@ import EpicTimeline from './components/EpicTimeline';
 import { useSettings } from './hooks/useSettings';
 
 const App: React.FC = () => {
-  const { data, loading, refreshing, error, metrics, refresh, cacheMetadata, isFromCache, clearCache } = useJiraData();
+  const { data, loading, refreshing, error, metrics, refresh, cacheMetadata, clearCache } = useJiraData();
   const { settings, updateWorkDays } = useSettings();
   
   // Initialize state from URL
@@ -130,7 +130,6 @@ const App: React.FC = () => {
         {activeTab === TABS.SETTINGS ? (
           <SettingsView
             cacheMetadata={cacheMetadata}
-            isFromCache={isFromCache}
             refreshing={refreshing}
             onRefresh={() => refresh(true)}
             onClearCache={clearCache}

@@ -4,7 +4,6 @@ import type { CacheMetadata } from '../services/jiraService';
 
 interface SettingsViewProps {
     cacheMetadata: CacheMetadata | null;
-    isFromCache: boolean;
     refreshing: boolean;
     onRefresh: () => void;
     onClearCache: () => void;
@@ -14,14 +13,12 @@ interface SettingsViewProps {
 
 const SettingsView: React.FC<SettingsViewProps> = ({
     cacheMetadata,
-    isFromCache,
     refreshing,
     onRefresh,
     onClearCache,
     workDays,
     onUpdateWorkDays
 }) => {
-    const cacheTTLText = '12 hours';
 
     return (
         <div className="settings-container">
@@ -83,7 +80,6 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                         <h4 className="feature-title" style={{ marginBottom: '1rem' }}>Cache Controls</h4>
                         <CacheStatus
                             cacheMetadata={cacheMetadata}
-                            isFromCache={isFromCache}
                             refreshing={refreshing}
                             onRefresh={onRefresh}
                             onClearCache={onClearCache}
@@ -93,10 +89,10 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                     <div className="tip-box">
                         <h4 className="tip-title">About Data Freshness</h4>
                         <ul className="tip-list">
-                            <li>Data is automatically cached for {cacheTTLText}.</li>
-                            <li>"From Cache" means you are viewing locally stored data.</li>
-                            <li>"Live Data" means the data was just fetched from Jira.</li>
-                            <li>Use "Refresh Now" to force an update from Jira.</li>
+                            <li>Data is stored locally and never expires automatically.</li>
+                            <li>Use "Refresh Now" to incrementally sync changes from Jira.</li>
+                            <li>Tasks removed from Jira are pruned on each refresh.</li>
+                            <li>Use "Clear Cache" to wipe local data and start fresh.</li>
                         </ul>
                     </div>
                 </div>

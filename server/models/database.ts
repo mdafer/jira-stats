@@ -37,15 +37,15 @@ export const saveTasks = (tasks: JiraTask[], jql: string) => {
 
     db.exec('BEGIN');
     try {
-        db.prepare('DELETE FROM tasks').run();
-        const insert = db.prepare('INSERT INTO tasks (id, data, jql, updated_at) VALUES (?, ?, ?, ?)');
+        const upsert = db.prepare('INSERT OR REPLACE INTO tasks (id, data, jql, updated_at) VALUES (?, ?, ?, ?)');
         for (const task of tasks) {
-            insert.run(task.ID, JSON.stringify(task), jql, now);
+            upsert.run(task.ID, JSON.stringify(task), jql, now);
         }
+        const totalTasks = (db.prepare('SELECT COUNT(*) as count FROM tasks').get() as { count: number }).count;
         db.prepare(`
             INSERT OR REPLACE INTO cache_metadata (key, last_fetch, total_tasks, jql)
             VALUES ('main', ?, ?, ?)
-        `).run(now, tasks.length, jql);
+        `).run(now, totalTasks, jql);
         db.exec('COMMIT');
     } catch (e) {
         db.exec('ROLLBACK');
@@ -68,11 +68,10 @@ export const getMetadata = (): CacheMetadata | null => {
     };
 };
 
-export const isCacheValid = (maxAgeMinutes: number): boolean => {
-    const meta = getMetadata();
-    if (!meta) return false;
-    const ageMs = Date.now() - meta.lastFetch;
-    return ageMs < maxAgeMinutes * 60 * 1000;
+export const deleteRemovedTasks = (currentIds: string[]) => {
+    if (currentIds.length === 0) return;
+    const placeholders = currentIds.map(() => '?').join(', ');
+    db.prepare(`DELETE FROM tasks WHERE id NOT IN (${placeholders})`).run(...currentIds);
 };
 
 export const clearCache = () => {

@@ -9,7 +9,6 @@ export const useJiraData = () => {
     const [refreshing, setRefreshing] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [cacheMetadata, setCacheMetadata] = useState<CacheMetadata | null>(null);
-    const [isFromCache, setIsFromCache] = useState(false);
 
     const fetchData = useCallback(async (forceRefresh: boolean = false) => {
         setRefreshing(true);
@@ -22,7 +21,6 @@ export const useJiraData = () => {
 
             setData(result.tasks);
             setCacheMetadata(result.metadata);
-            setIsFromCache(result.fromCache);
 
             if (result.error) {
                 setError(result.error);
@@ -94,7 +92,6 @@ export const useJiraData = () => {
         metrics,
         refresh: fetchData,
         cacheMetadata,
-        isFromCache,
         clearCache: async () => {
             await apiClient.clearCache();
             await fetchData(true);
