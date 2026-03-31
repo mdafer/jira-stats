@@ -184,129 +184,137 @@ const EpicTimeline: React.FC<EpicTimelineProps> = ({ data, onNavigateToSprint })
                 )}
             </div>
 
-            {/* Chart: fixed sidebar + scrollable chart side by side */}
-            <div style={{ background: '#0f172a', borderRadius: '12px', border: '1px solid var(--border)', display: 'flex', overflow: 'hidden' }}>
+            {/* Chart: single overflow:auto container with sticky header + sticky sidebar */}
+            <div style={{ background: '#0f172a', borderRadius: '12px', border: '1px solid var(--border)', overflow: 'auto', maxHeight: 'calc(100vh - 260px)' }}>
+                <div style={{ minWidth: labelWidth + chartWidth + 48 }}>
 
-                {/* Fixed sidebar — never scrolls */}
-                <div style={{ width: labelWidth, flexShrink: 0, background: '#0f172a', borderRight: '1px solid var(--border)', padding: '1.5rem 0.75rem 1.5rem 1.25rem', zIndex: 2 }}>
-                    {/* Spacer to match chart header height (sprint name row + date row) */}
-                    <div style={{ height: 'calc(1.4rem + 0.25rem + 1rem + 1rem + 0.5rem + 1px)' }} />
+                    {/* Sticky header row (sprint names + dates) */}
+                    <div style={{ position: 'sticky', top: 0, zIndex: 10, display: 'flex', background: '#0f172a', borderBottom: '1px solid var(--border)' }}>
+                        {/* Top-left corner — sticky left so it stays visible during horizontal scroll */}
+                        <div style={{ position: 'sticky', left: 0, width: labelWidth, flexShrink: 0, background: '#0f172a', borderRight: '1px solid var(--border)', zIndex: 11 }} />
 
-                    {/* Epic label rows */}
-                    {visibleEpics.map(epic => {
-                        const color = epicColors.get(epic.name)!;
-                        return (
-                            <div
-                                key={epic.name}
-                                style={{ height: rowHeight, marginBottom: '0.6rem', display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.78rem', fontWeight: 600, color: 'white', overflow: 'hidden' }}
-                                title={epic.name}
-                            >
-                                <span style={{ width: 8, height: 8, borderRadius: 2, background: color, flexShrink: 0 }} />
-                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{epic.name}</span>
-                            </div>
-                        );
-                    })}
-
-                    {/* Summary label */}
-                    <div style={{ height: rowHeight, display: 'flex', alignItems: 'center', marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border)', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-                        Total / sprint
-                    </div>
-                </div>
-
-                {/* Scrollable chart area */}
-                <div style={{ flex: 1, overflowX: 'auto' }}>
-                    <div style={{ minWidth: chartWidth, padding: '1.5rem' }}>
-
-                        {/* Sprint name header */}
-                        <div style={{ position: 'relative', width: chartWidth, height: '1.4rem', marginBottom: '0.25rem' }}>
-                            {sprints.map(sprint => (
-                                <div
-                                    key={sprint.name}
-                                    style={{ position: 'absolute', left: sprintLeft(sprint), width: sprintWidth(sprint), fontSize: '0.65rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingLeft: 6, borderLeft: '1px solid rgba(255,255,255,0.1)' }}
-                                    title={sprint.name}
-                                >
-                                    {sprint.name}
-                                </div>
-                            ))}
-                        </div>
-
-                        {/* Date labels */}
-                        <div style={{ position: 'relative', width: chartWidth, height: '1rem', marginBottom: '1rem', paddingBottom: '0.5rem', borderBottom: '1px solid var(--border)' }}>
-                            {sprints.map(sprint => (
-                                <span key={sprint.name} style={{ position: 'absolute', left: sprintLeft(sprint), transform: 'translateX(-50%)', fontSize: '0.6rem', color: 'rgba(148,163,184,0.6)', whiteSpace: 'nowrap' }}>
-                                    {formatDate(sprint.start)}
-                                </span>
-                            ))}
-                            <span style={{ position: 'absolute', left: chartWidth, transform: 'translateX(-50%)', fontSize: '0.6rem', color: 'rgba(148,163,184,0.6)', whiteSpace: 'nowrap' }}>
-                                {formatDate(maxTime)}
-                            </span>
-                        </div>
-
-                        {/* Epic rows */}
-                        <div style={{ position: 'relative' }}>
-                            {/* Vertical sprint dividers */}
-                            <div style={{ position: 'absolute', left: 0, width: chartWidth, top: 0, bottom: 0, pointerEvents: 'none' }}>
+                        {/* Sprint names + dates */}
+                        <div style={{ flex: 1, padding: '1.5rem 1.5rem 0.75rem' }}>
+                            {/* Sprint name row */}
+                            <div style={{ position: 'relative', width: chartWidth, height: '1.4rem', marginBottom: '0.25rem' }}>
                                 {sprints.map(sprint => (
-                                    <div key={sprint.name} style={{ position: 'absolute', left: sprintLeft(sprint), top: 0, bottom: 0, borderLeft: '1px solid rgba(255,255,255,0.06)' }} />
+                                    <div
+                                        key={sprint.name}
+                                        style={{ position: 'absolute', left: sprintLeft(sprint), width: sprintWidth(sprint), fontSize: '0.65rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingLeft: 6, borderLeft: '1px solid rgba(255,255,255,0.1)' }}
+                                        title={sprint.name}
+                                    >
+                                        {sprint.name}
+                                    </div>
                                 ))}
-                                <div style={{ position: 'absolute', left: chartWidth, top: 0, bottom: 0, borderLeft: '1px solid rgba(255,255,255,0.06)' }} />
                             </div>
 
+                            {/* Date labels */}
+                            <div style={{ position: 'relative', width: chartWidth, height: '1rem' }}>
+                                {sprints.map(sprint => (
+                                    <span key={sprint.name} style={{ position: 'absolute', left: sprintLeft(sprint), transform: 'translateX(-50%)', fontSize: '0.6rem', color: 'rgba(148,163,184,0.6)', whiteSpace: 'nowrap' }}>
+                                        {formatDate(sprint.start)}
+                                    </span>
+                                ))}
+                                <span style={{ position: 'absolute', left: chartWidth, transform: 'translateX(-50%)', fontSize: '0.6rem', color: 'rgba(148,163,184,0.6)', whiteSpace: 'nowrap' }}>
+                                    {formatDate(maxTime)}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Body: sticky sidebar + chart rows */}
+                    <div style={{ display: 'flex' }}>
+                        {/* Sticky sidebar — stays left during horizontal scroll */}
+                        <div style={{ position: 'sticky', left: 0, width: labelWidth, flexShrink: 0, background: '#0f172a', borderRight: '1px solid var(--border)', padding: '1rem 0.75rem 1.5rem 1.25rem', zIndex: 3 }}>
+                            {/* Epic label rows */}
                             {visibleEpics.map(epic => {
                                 const color = epicColors.get(epic.name)!;
-                                const tasksBySprint = new Map<string, JiraTask[]>();
-                                for (const task of epic.tasks) {
-                                    if (EXCLUDED_SPRINT(task.Sprint)) continue;
-                                    if (!tasksBySprint.has(task.Sprint)) tasksBySprint.set(task.Sprint, []);
-                                    tasksBySprint.get(task.Sprint)!.push(task);
-                                }
-
                                 return (
-                                    <div key={epic.name} style={{ marginBottom: '0.6rem', position: 'relative', zIndex: 1 }}>
-                                        <div style={{ width: chartWidth, height: rowHeight, position: 'relative', background: 'rgba(30,41,59,0.3)', borderRadius: '6px', overflow: 'hidden' }}>
-                                            {sprints.map(sprint => {
-                                                const tasks = tasksBySprint.get(sprint.name);
-                                                if (!tasks || tasks.length === 0) return null;
-                                                const left = sprintLeft(sprint);
-                                                const width = sprintWidth(sprint);
-                                                const points = tasks.reduce((s, t) => s + (t.StoryPoints || 0), 0);
-                                                const doneCount = tasks.filter(t => t.StatusCategory === 'Done').length;
-                                                const isActive = activeCell?.epic === epic.name && activeCell.sprint.name === sprint.name;
-                                                return (
-                                                    <div
-                                                        key={sprint.name}
-                                                        onClick={() => setActiveCell({ epic: epic.name, sprint, tasks })}
-                                                        style={{ position: 'absolute', left, width, height: rowHeight, background: isActive ? `${color}55` : `${color}2a`, borderLeft: `3px solid ${color}`, borderRight: `1px solid ${color}44`, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'background 0.15s', overflow: 'hidden', boxSizing: 'border-box', borderRadius: '0 3px 3px 0' }}
-                                                        title={`${epic.name} · ${sprint.name}\n${tasks.length} tasks (${doneCount} done) · ${points} pts`}
-                                                    >
-                                                        <span style={{ fontSize: '0.65rem', color: 'white', fontWeight: 700, lineHeight: 1.2 }}>{tasks.length}t</span>
-                                                        <span style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.6)', lineHeight: 1.2 }}>{points}pts</span>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
+                                    <div
+                                        key={epic.name}
+                                        style={{ height: rowHeight, marginBottom: '0.6rem', display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.78rem', fontWeight: 600, color: 'white', overflow: 'hidden' }}
+                                        title={epic.name}
+                                    >
+                                        <span style={{ width: 8, height: 8, borderRadius: 2, background: color, flexShrink: 0 }} />
+                                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{epic.name}</span>
                                     </div>
                                 );
                             })}
+
+                            {/* Summary label */}
+                            <div style={{ height: rowHeight, display: 'flex', alignItems: 'center', marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border)', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                                Total / sprint
+                            </div>
                         </div>
 
-                        {/* Summary row */}
-                        <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
-                            <div style={{ width: chartWidth, height: rowHeight, position: 'relative' }}>
-                                {sprints.map(sprint => {
-                                    const sprintTasks = data.filter(t => t.Sprint === sprint.name);
-                                    const pts = sprintTasks.reduce((s, t) => s + (t.StoryPoints || 0), 0);
+                        {/* Chart content */}
+                        <div style={{ flex: 1, padding: '1rem 1.5rem 1.5rem' }}>
+                            {/* Epic rows */}
+                            <div style={{ position: 'relative' }}>
+                                {/* Vertical sprint dividers */}
+                                <div style={{ position: 'absolute', left: 0, width: chartWidth, top: 0, bottom: 0, pointerEvents: 'none' }}>
+                                    {sprints.map(sprint => (
+                                        <div key={sprint.name} style={{ position: 'absolute', left: sprintLeft(sprint), top: 0, bottom: 0, borderLeft: '1px solid rgba(255,255,255,0.06)' }} />
+                                    ))}
+                                    <div style={{ position: 'absolute', left: chartWidth, top: 0, bottom: 0, borderLeft: '1px solid rgba(255,255,255,0.06)' }} />
+                                </div>
+
+                                {visibleEpics.map(epic => {
+                                    const color = epicColors.get(epic.name)!;
+                                    const tasksBySprint = new Map<string, JiraTask[]>();
+                                    for (const task of epic.tasks) {
+                                        if (EXCLUDED_SPRINT(task.Sprint)) continue;
+                                        if (!tasksBySprint.has(task.Sprint)) tasksBySprint.set(task.Sprint, []);
+                                        tasksBySprint.get(task.Sprint)!.push(task);
+                                    }
+
                                     return (
-                                        <div key={sprint.name} style={{ position: 'absolute', left: sprintLeft(sprint), width: sprintWidth(sprint), height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderLeft: '1px solid rgba(255,255,255,0.06)' }}>
-                                            <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 700 }}>{sprintTasks.length}t</span>
-                                            <span style={{ fontSize: '0.6rem', color: 'rgba(148,163,184,0.5)' }}>{pts}pts</span>
+                                        <div key={epic.name} style={{ marginBottom: '0.6rem', position: 'relative', zIndex: 1 }}>
+                                            <div style={{ width: chartWidth, height: rowHeight, position: 'relative', background: 'rgba(30,41,59,0.3)', borderRadius: '6px', overflow: 'hidden' }}>
+                                                {sprints.map(sprint => {
+                                                    const tasks = tasksBySprint.get(sprint.name);
+                                                    if (!tasks || tasks.length === 0) return null;
+                                                    const left = sprintLeft(sprint);
+                                                    const width = sprintWidth(sprint);
+                                                    const points = tasks.reduce((s, t) => s + (t.StoryPoints || 0), 0);
+                                                    const doneCount = tasks.filter(t => t.StatusCategory === 'Done').length;
+                                                    const isActive = activeCell?.epic === epic.name && activeCell.sprint.name === sprint.name;
+                                                    return (
+                                                        <div
+                                                            key={sprint.name}
+                                                            onClick={() => setActiveCell({ epic: epic.name, sprint, tasks })}
+                                                            style={{ position: 'absolute', left, width, height: rowHeight, background: isActive ? `${color}55` : `${color}2a`, borderLeft: `3px solid ${color}`, borderRight: `1px solid ${color}44`, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'background 0.15s', overflow: 'hidden', boxSizing: 'border-box', borderRadius: '0 3px 3px 0' }}
+                                                            title={`${epic.name} · ${sprint.name}\n${tasks.length} tasks (${doneCount} done) · ${points} pts`}
+                                                        >
+                                                            <span style={{ fontSize: '0.65rem', color: 'white', fontWeight: 700, lineHeight: 1.2 }}>{tasks.length}t</span>
+                                                            <span style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.6)', lineHeight: 1.2 }}>{points}pts</span>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
                                         </div>
                                     );
                                 })}
                             </div>
-                        </div>
 
+                            {/* Summary row */}
+                            <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
+                                <div style={{ width: chartWidth, height: rowHeight, position: 'relative' }}>
+                                    {sprints.map(sprint => {
+                                        const sprintTasks = data.filter(t => t.Sprint === sprint.name);
+                                        const pts = sprintTasks.reduce((s, t) => s + (t.StoryPoints || 0), 0);
+                                        return (
+                                            <div key={sprint.name} style={{ position: 'absolute', left: sprintLeft(sprint), width: sprintWidth(sprint), height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderLeft: '1px solid rgba(255,255,255,0.06)' }}>
+                                                <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 700 }}>{sprintTasks.length}t</span>
+                                                <span style={{ fontSize: '0.6rem', color: 'rgba(148,163,184,0.5)' }}>{pts}pts</span>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        </div>
                     </div>
+
                 </div>
             </div>
 
