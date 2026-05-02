@@ -18,6 +18,9 @@ export interface JiraTask {
     SprintStart?: string;
     SprintEnd?: string;
     Sprints?: SprintInfo[];
+    IsSubtask?: boolean;
+    ParentID?: string;
+    ParentName?: string;
     TimeSpent: number;
     StagesDurations: Record<string, number>;
     Stages: {

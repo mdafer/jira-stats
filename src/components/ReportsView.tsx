@@ -27,6 +27,18 @@ const isActiveStatus = (status: string) => {
     return ACTIVE_STATUS_KEYWORDS.some(k => s.includes(k));
 };
 
+const isSubtaskTask = (task: JiraTask): boolean => {
+    if (typeof task.IsSubtask === 'boolean') return task.IsSubtask;
+    return (task.Type || '').toLowerCase().includes('sub');
+};
+
+const parentLabel = (task: JiraTask): string => {
+    const name = task.ParentName || task.Epic || '';
+    if (task.ParentID && name) return `${task.ParentID} · ${name}`;
+    if (task.ParentID) return task.ParentID;
+    return name || '–';
+};
+
 const COLUMN_KEYS = ['id', 'name', 'epic', 'status', 'points', 'timeSpent', 'firstActive', 'lastActive'] as const;
 type ColumnKey = typeof COLUMN_KEYS[number];
 
@@ -40,6 +52,11 @@ const COLUMN_LABELS: Record<ColumnKey, string> = {
     firstActive: 'First Active',
     lastActive: 'Last Active',
 };
+// For subtasks, the "epic" column is repurposed as Parent Task.
+const SUBTASK_COLUMN_LABELS: Record<ColumnKey, string> = {
+    ...COLUMN_LABELS,
+    epic: 'Parent Task',
+};
 
 interface TaskRow {
     task: JiraTask;
@@ -51,6 +68,7 @@ interface TaskRow {
 interface DevSection {
     dev: string;
     tasks: TaskRow[];
+    subtasks: TaskRow[];
 }
 
 const toIsoDate = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -75,6 +93,7 @@ const ReportsView: React.FC<ReportsViewProps> = ({ data, workDays }) => {
     const [from, setFrom] = useState(startOfMonthIso());
     const [to, setTo] = useState(todayIso());
     const [columns, setColumns] = useState<Set<ColumnKey>>(new Set(COLUMN_KEYS));
+    const [includeSubtasks, setIncludeSubtasks] = useState(true);
     const [exporting, setExporting] = useState(false);
 
     const fromMs = useMemo(() => {
@@ -113,7 +132,7 @@ const ReportsView: React.FC<ReportsViewProps> = ({ data, workDays }) => {
 
         return Array.from(byDev.entries())
             .map(([dev, taskMap]) => {
-                const tasks: TaskRow[] = Array.from(taskMap.values()).map(({ task, intervals }) => {
+                const allRows: TaskRow[] = Array.from(taskMap.values()).map(({ task, intervals }) => {
                     const firstActive = Math.min(...intervals.map(i => i.start));
                     const lastActive = Math.max(...intervals.map(i => i.end));
                     return {
@@ -123,12 +142,17 @@ const ReportsView: React.FC<ReportsViewProps> = ({ data, workDays }) => {
                         lastActive,
                     };
                 }).sort((a, b) => a.firstActive - b.firstActive);
-                return { dev, tasks };
+
+                const tasks = allRows.filter(r => !isSubtaskTask(r.task));
+                const subtasks = allRows.filter(r => isSubtaskTask(r.task));
+                return { dev, tasks, subtasks };
             })
+            .filter(s => s.tasks.length > 0 || (includeSubtasks && s.subtasks.length > 0))
             .sort((a, b) => a.dev.localeCompare(b.dev));
-    }, [data, fromMs, toMs, workDays]);
+    }, [data, fromMs, toMs, workDays, includeSubtasks]);
 
     const totalTasks = sections.reduce((s, sec) => s + sec.tasks.length, 0);
+    const totalSubtasks = sections.reduce((s, sec) => s + sec.subtasks.length, 0);
 
     const toggleColumn = (key: ColumnKey) => {
         setColumns(prev => {
@@ -138,11 +162,11 @@ const ReportsView: React.FC<ReportsViewProps> = ({ data, workDays }) => {
         });
     };
 
-    const cellText = (row: TaskRow, key: ColumnKey): string => {
+    const cellText = (row: TaskRow, key: ColumnKey, kind: 'task' | 'subtask'): string => {
         switch (key) {
             case 'id': return row.task.ID;
             case 'name': return row.task.Name;
-            case 'epic': return row.task.Epic || '–';
+            case 'epic': return kind === 'subtask' ? parentLabel(row.task) : (row.task.Epic || '–');
             case 'status': return row.task.Status;
             case 'points': return row.task.StoryPoints ? String(row.task.StoryPoints) : '–';
             case 'timeSpent': return `${row.timeSpentDays} d`;
@@ -151,12 +175,12 @@ const ReportsView: React.FC<ReportsViewProps> = ({ data, workDays }) => {
         }
     };
 
+    const orderedColumns = COLUMN_KEYS.filter(k => columns.has(k));
+
     const exportWord = async () => {
         if (sections.length === 0 || columns.size === 0) return;
         setExporting(true);
         try {
-            const orderedColumns = COLUMN_KEYS.filter(k => columns.has(k));
-
             const headerCell = (text: string) =>
                 new TableCell({
                     children: [new Paragraph({ children: [new TextRun({ text, bold: true, size: 20 })] })],
@@ -168,13 +192,37 @@ const ReportsView: React.FC<ReportsViewProps> = ({ data, workDays }) => {
                     children: [new Paragraph({ children: [new TextRun({ text, size: 20 })] })],
                 });
 
-            const docChildren: Paragraph[] | (Paragraph | Table)[] = [];
+            const borders = {
+                top: { style: BorderStyle.SINGLE, size: 4, color: '94A3B8' },
+                bottom: { style: BorderStyle.SINGLE, size: 4, color: '94A3B8' },
+                left: { style: BorderStyle.SINGLE, size: 4, color: '94A3B8' },
+                right: { style: BorderStyle.SINGLE, size: 4, color: '94A3B8' },
+                insideHorizontal: { style: BorderStyle.SINGLE, size: 2, color: 'CBD5E1' },
+                insideVertical: { style: BorderStyle.SINGLE, size: 2, color: 'CBD5E1' },
+            };
+
+            const buildTable = (rows: TaskRow[], kind: 'task' | 'subtask') => {
+                const labels = kind === 'subtask' ? SUBTASK_COLUMN_LABELS : COLUMN_LABELS;
+                const headerRow = new TableRow({
+                    tableHeader: true,
+                    children: orderedColumns.map(k => headerCell(labels[k])),
+                });
+                const bodyRows = rows.map(row =>
+                    new TableRow({
+                        children: orderedColumns.map(k => dataCell(cellText(row, k, kind))),
+                    }),
+                );
+                return new Table({
+                    width: { size: 100, type: WidthType.PERCENTAGE },
+                    rows: [headerRow, ...bodyRows],
+                    borders,
+                });
+            };
+
+            const docChildren: (Paragraph | Table)[] = [];
 
             docChildren.push(
-                new Paragraph({
-                    text: 'Developer Activity Report',
-                    heading: HeadingLevel.HEADING_1,
-                }),
+                new Paragraph({ text: 'Developer Activity Report', heading: HeadingLevel.HEADING_1 }),
                 new Paragraph({
                     children: [
                         new TextRun({ text: 'Range: ', bold: true }),
@@ -194,46 +242,52 @@ const ReportsView: React.FC<ReportsViewProps> = ({ data, workDays }) => {
                         new TextRun({ text: '   ·   ' }),
                         new TextRun({ text: 'Tasks: ', bold: true }),
                         new TextRun({ text: `${totalTasks}` }),
+                        ...(includeSubtasks ? [
+                            new TextRun({ text: '   ·   ' }),
+                            new TextRun({ text: 'Subtasks: ', bold: true }),
+                            new TextRun({ text: `${totalSubtasks}` }),
+                        ] : []),
                     ],
                 }),
                 new Paragraph({ text: '' }),
             );
 
             for (const section of sections) {
+                const taskCount = section.tasks.length;
+                const subCount = section.subtasks.length;
+                const headerBits = [
+                    `${taskCount} task${taskCount === 1 ? '' : 's'}`,
+                    includeSubtasks ? `${subCount} subtask${subCount === 1 ? '' : 's'}` : null,
+                ].filter(Boolean).join(' · ');
+
                 docChildren.push(
                     new Paragraph({
-                        text: `${section.dev} — ${section.tasks.length} task${section.tasks.length === 1 ? '' : 's'}`,
+                        text: `${section.dev} — ${headerBits}`,
                         heading: HeadingLevel.HEADING_2,
                     }),
                 );
 
-                const headerRow = new TableRow({
-                    tableHeader: true,
-                    children: orderedColumns.map(k => headerCell(COLUMN_LABELS[k])),
-                });
-                const bodyRows = section.tasks.map(row =>
-                    new TableRow({
-                        children: orderedColumns.map(k => dataCell(cellText(row, k))),
-                    }),
-                );
+                if (taskCount > 0) {
+                    docChildren.push(
+                        new Paragraph({
+                            children: [new TextRun({ text: 'Tasks', bold: true })],
+                            heading: HeadingLevel.HEADING_3,
+                        }),
+                        buildTable(section.tasks, 'task'),
+                        new Paragraph({ text: '' }),
+                    );
+                }
 
-                const borders = {
-                    top: { style: BorderStyle.SINGLE, size: 4, color: '94A3B8' },
-                    bottom: { style: BorderStyle.SINGLE, size: 4, color: '94A3B8' },
-                    left: { style: BorderStyle.SINGLE, size: 4, color: '94A3B8' },
-                    right: { style: BorderStyle.SINGLE, size: 4, color: '94A3B8' },
-                    insideHorizontal: { style: BorderStyle.SINGLE, size: 2, color: 'CBD5E1' },
-                    insideVertical: { style: BorderStyle.SINGLE, size: 2, color: 'CBD5E1' },
-                };
-
-                docChildren.push(
-                    new Table({
-                        width: { size: 100, type: WidthType.PERCENTAGE },
-                        rows: [headerRow, ...bodyRows],
-                        borders,
-                    }) as any,
-                    new Paragraph({ text: '' }),
-                );
+                if (includeSubtasks && subCount > 0) {
+                    docChildren.push(
+                        new Paragraph({
+                            children: [new TextRun({ text: 'Subtasks', bold: true })],
+                            heading: HeadingLevel.HEADING_3,
+                        }),
+                        buildTable(section.subtasks, 'subtask'),
+                        new Paragraph({ text: '' }),
+                    );
+                }
             }
 
             const doc = new Document({
@@ -251,6 +305,40 @@ const ReportsView: React.FC<ReportsViewProps> = ({ data, workDays }) => {
 
     const noColumns = columns.size === 0;
     const noData = sections.length === 0;
+
+    const renderTable = (rows: TaskRow[], kind: 'task' | 'subtask') => {
+        const labels = kind === 'subtask' ? SUBTASK_COLUMN_LABELS : COLUMN_LABELS;
+        return (
+            <div className="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            {orderedColumns.map(k => (
+                                <th key={k}>{labels[k]}</th>
+                            ))}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {rows.map(row => (
+                            <tr key={row.task.ID}>
+                                {orderedColumns.map(k => (
+                                    <td key={k} style={k === 'id' ? { whiteSpace: 'nowrap', fontWeight: 600 } : k === 'name' ? { maxWidth: '360px' } : undefined}>
+                                        {k === 'id' ? (
+                                            <a href={row.task.Link} target="_blank" rel="noreferrer" style={{ color: 'var(--primary)', textDecoration: 'none' }}>
+                                                {row.task.ID}
+                                            </a>
+                                        ) : (
+                                            cellText(row, k, kind)
+                                        )}
+                                    </td>
+                                ))}
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        );
+    };
 
     return (
         <div className="card glass-morphism">
@@ -272,6 +360,15 @@ const ReportsView: React.FC<ReportsViewProps> = ({ data, workDays }) => {
                 <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                     To
                     <input type="date" value={to} min={from} onChange={e => setTo(e.target.value)} style={inputStyle} />
+                </label>
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', color: 'var(--text-muted)', userSelect: 'none', cursor: 'pointer' }}>
+                    <input
+                        type="checkbox"
+                        checked={includeSubtasks}
+                        onChange={e => setIncludeSubtasks(e.target.checked)}
+                        style={{ accentColor: 'var(--primary)', width: 16, height: 16, cursor: 'pointer' }}
+                    />
+                    Include subtasks
                 </label>
                 <button
                     onClick={exportWord}
@@ -299,7 +396,9 @@ const ReportsView: React.FC<ReportsViewProps> = ({ data, workDays }) => {
 
             {/* Column selector */}
             <div style={{ marginBottom: '1.5rem' }}>
-                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>Columns</div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
+                    Columns <span style={{ opacity: 0.7 }}>(for subtasks, "Epic" becomes "Parent Task")</span>
+                </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
                     {COLUMN_KEYS.map(key => {
                         const checked = columns.has(key);
@@ -343,6 +442,9 @@ const ReportsView: React.FC<ReportsViewProps> = ({ data, workDays }) => {
             <div style={{ display: 'flex', gap: '1.5rem', marginBottom: '1.5rem', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
                 <span>Developers: <strong style={{ color: 'white' }}>{sections.length}</strong></span>
                 <span>Tasks: <strong style={{ color: 'white' }}>{totalTasks}</strong></span>
+                {includeSubtasks && (
+                    <span>Subtasks: <strong style={{ color: 'white' }}>{totalSubtasks}</strong></span>
+                )}
             </div>
 
             {/* Preview */}
@@ -351,43 +453,30 @@ const ReportsView: React.FC<ReportsViewProps> = ({ data, workDays }) => {
                     No active development found in this range.
                 </div>
             ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem' }}>
                     {sections.map(section => (
                         <div key={section.dev}>
                             <h4 style={{ margin: '0 0 0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                 {section.dev}
                                 <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 400 }}>
                                     · {section.tasks.length} task{section.tasks.length === 1 ? '' : 's'}
+                                    {includeSubtasks && ` · ${section.subtasks.length} subtask${section.subtasks.length === 1 ? '' : 's'}`}
                                 </span>
                             </h4>
-                            <div className="table-container">
-                                <table>
-                                    <thead>
-                                        <tr>
-                                            {COLUMN_KEYS.filter(k => columns.has(k)).map(k => (
-                                                <th key={k}>{COLUMN_LABELS[k]}</th>
-                                            ))}
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {section.tasks.map(row => (
-                                            <tr key={row.task.ID}>
-                                                {COLUMN_KEYS.filter(k => columns.has(k)).map(k => (
-                                                    <td key={k} style={k === 'id' ? { whiteSpace: 'nowrap', fontWeight: 600 } : k === 'name' ? { maxWidth: '360px' } : undefined}>
-                                                        {k === 'id' ? (
-                                                            <a href={row.task.Link} target="_blank" rel="noreferrer" style={{ color: 'var(--primary)', textDecoration: 'none' }}>
-                                                                {row.task.ID}
-                                                            </a>
-                                                        ) : (
-                                                            cellText(row, k)
-                                                        )}
-                                                    </td>
-                                                ))}
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
+
+                            {section.tasks.length > 0 && (
+                                <div style={{ marginBottom: includeSubtasks && section.subtasks.length > 0 ? '1.25rem' : 0 }}>
+                                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.4rem' }}>Tasks</div>
+                                    {renderTable(section.tasks, 'task')}
+                                </div>
+                            )}
+
+                            {includeSubtasks && section.subtasks.length > 0 && (
+                                <div>
+                                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.4rem' }}>Subtasks</div>
+                                    {renderTable(section.subtasks, 'subtask')}
+                                </div>
+                            )}
                         </div>
                     ))}
                 </div>

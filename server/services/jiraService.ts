@@ -105,10 +105,20 @@ const transformIssue = (issue: any): JiraTask => {
     let sprints: SprintInfo[] = [];
     let storyPoints = 0;
 
-    // Epic: check parent field (Jira Cloud next-gen) or epic link custom fields
+    const isSubtask = !!issue.fields.issuetype?.subtask;
+    let parentID: string | undefined;
+    let parentName: string | undefined;
+
+    // Epic: only treat the parent as Epic when it is actually an Epic.
+    // For sub-tasks the parent is a Story/Task — capture it as parent info, not as Epic.
     let epicName = '';
-    if (issue.fields.parent && issue.fields.parent.fields?.summary) {
-        epicName = issue.fields.parent.fields.summary;
+    if (issue.fields.parent) {
+        parentID = issue.fields.parent.key;
+        parentName = issue.fields.parent.fields?.summary;
+        const parentType = issue.fields.parent.fields?.issuetype?.name;
+        if (parentType === 'Epic' && parentName) {
+            epicName = parentName;
+        }
     }
 
     Object.keys(issue.fields).forEach(key => {
@@ -153,6 +163,9 @@ const transformIssue = (issue: any): JiraTask => {
         SprintStart: sprintStart,
         SprintEnd: sprintEnd,
         Sprints: sprints,
+        IsSubtask: isSubtask,
+        ParentID: parentID,
+        ParentName: parentName,
         TimeSpent: issue.fields.timespent ? issue.fields.timespent / 3600 / 8 : 0,
         StagesDurations: stageObj,
         Stages: intervals.map(i => ({
