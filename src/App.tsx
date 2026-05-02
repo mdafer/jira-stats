@@ -13,6 +13,7 @@ import SettingsView from './components/SettingsView';
 
 import IdleTimeView from './components/IdleTimeView';
 import EpicTimeline from './components/EpicTimeline';
+import ReportsView from './components/ReportsView';
 
 import { useSettings } from './hooks/useSettings';
 
@@ -145,6 +146,7 @@ const App: React.FC = () => {
               {activeTab === TABS.TASKS && <IssueExplorer data={data} />}
               {activeTab === TABS.IDLE_TIME && <IdleTimeView data={data} onNavigateToSprint={handleNavigateToSprint} workDays={settings.workDays} />}
               {activeTab === TABS.TIMELINE && <EpicTimeline data={data} onNavigateToSprint={handleNavigateToSprint} />}
+              {activeTab === TABS.REPORTS && <ReportsView data={data} workDays={settings.workDays} />}
             </>
           )
         )}

@@ -7,6 +7,7 @@ export const TABS = {
     TASKS: 'tasks',
     IDLE_TIME: 'idle_time',
     TIMELINE: 'timeline',
+    REPORTS: 'reports',
     SETTINGS: 'settings'
 } as const;
 
