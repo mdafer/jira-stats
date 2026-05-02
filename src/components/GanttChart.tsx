@@ -1,4 +1,5 @@
 import React from 'react';
+import { Info } from 'lucide-react';
 import type { JiraTask } from '../types/jira';
 import { round1dec } from '../utils/dateUtils';
 
@@ -11,6 +12,12 @@ interface GanttChartProps {
     allDevs: string[];
     workDays: number[];
 }
+
+const MULTI_SPRINT_TOOLTIP = 'This task spans multiple sprints — it was not completed by the end of its original sprint and was carried over.';
+const taskSprintNames = (task: JiraTask): string[] => {
+    if (task.Sprints && task.Sprints.length > 0) return Array.from(new Set(task.Sprints.map(s => s.name).filter(Boolean)));
+    return task.Sprint ? [task.Sprint] : [];
+};
 
 const GanttChart: React.FC<GanttChartProps> = ({ tasks, sStart, sEnd, ganttDevFilter, setGanttDevFilter, allDevs, workDays }) => {
     const minTime = sStart;
@@ -108,8 +115,16 @@ const GanttChart: React.FC<GanttChartProps> = ({ tasks, sStart, sEnd, ganttDevFi
                         })
                         .map(task => (
                             <div key={task.ID} style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: '1rem', marginBottom: '1.25rem', alignItems: 'center', position: 'relative', zIndex: 1 }}>
-                                <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'flex', gap: '0.5rem', lineHeight: '1.4' }}>
+                                <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'flex', gap: '0.5rem', lineHeight: '1.4', alignItems: 'center' }}>
                                     <a href={task.Link} target="_blank" rel="noreferrer" style={{ color: 'var(--primary)', textDecoration: 'none', flexShrink: 0 }}>{task.ID}</a>
+                                    {taskSprintNames(task).length > 1 && (
+                                        <span
+                                            title={`${MULTI_SPRINT_TOOLTIP}\nSprints: ${taskSprintNames(task).join(', ')}`}
+                                            style={{ display: 'inline-flex', color: '#ef4444', cursor: 'help', flexShrink: 0 }}
+                                        >
+                                            <Info size={13} strokeWidth={2.5} />
+                                        </span>
+                                    )}
                                     <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.Epic ? `[${task.Epic}] ` : ''}{task.Name} (Pts: {task.StoryPoints || '-'})</span>
                                 </div>
                                 <div style={{ height: '20px', position: 'relative', borderRadius: '4px', background: 'rgba(30, 41, 59, 0.5)', overflow: 'hidden' }}>

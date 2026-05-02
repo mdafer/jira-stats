@@ -1,4 +1,4 @@
-import type { JiraTask } from '../types/jira.js';
+import type { JiraTask, SprintInfo } from '../types/jira.js';
 import { populateStages } from '../utils/jiraUtils.js';
 
 const JIRA_DOMAIN = process.env.JIRA_DOMAIN || '';
@@ -102,6 +102,7 @@ const transformIssue = (issue: any): JiraTask => {
     let sprintName = 'Backlog';
     let sprintStart: string | undefined;
     let sprintEnd: string | undefined;
+    let sprints: SprintInfo[] = [];
     let storyPoints = 0;
 
     // Epic: check parent field (Jira Cloud next-gen) or epic link custom fields
@@ -113,11 +114,20 @@ const transformIssue = (issue: any): JiraTask => {
     Object.keys(issue.fields).forEach(key => {
         // Detect Sprint
         if (key.includes('customfield_') && Array.isArray(issue.fields[key])) {
-            const sprintData = issue.fields[key][0];
+            const arr = issue.fields[key];
+            const sprintData = arr[0];
             if (sprintData && sprintData.name) {
                 sprintName = sprintData.name;
                 sprintStart = sprintData.startDate;
                 sprintEnd = sprintData.endDate || sprintData.completeDate;
+                sprints = arr
+                    .filter((s: any) => s && s.name)
+                    .map((s: any) => ({
+                        name: s.name,
+                        startDate: s.startDate,
+                        endDate: s.endDate || s.completeDate,
+                        state: s.state,
+                    }));
             }
         }
         // Detect Story Points common custom field IDs
@@ -142,6 +152,7 @@ const transformIssue = (issue: any): JiraTask => {
         Sprint: sprintName,
         SprintStart: sprintStart,
         SprintEnd: sprintEnd,
+        Sprints: sprints,
         TimeSpent: issue.fields.timespent ? issue.fields.timespent / 3600 / 8 : 0,
         StagesDurations: stageObj,
         Stages: intervals.map(i => ({

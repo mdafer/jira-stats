@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { X, ExternalLink } from 'lucide-react';
+import { X, ExternalLink, Info } from 'lucide-react';
 import type { JiraTask } from '../types/jira';
 import { COLORS } from '../constants/theme';
 import { useLocalStorage } from '../hooks/useLocalStorage';
@@ -29,6 +29,19 @@ const EXCLUDED_SPRINT = (name: string) =>
 
 const MIN_SPRINT_COL_PX = 130;
 
+const MULTI_SPRINT_TOOLTIP = 'This task spans multiple sprints — it was not completed by the end of its original sprint and was carried over.';
+
+const taskSprintEntries = (task: JiraTask): { name: string; startDate?: string; endDate?: string }[] => {
+    if (task.Sprints && task.Sprints.length > 0) return task.Sprints;
+    if (task.Sprint) return [{ name: task.Sprint, startDate: task.SprintStart, endDate: task.SprintEnd }];
+    return [];
+};
+
+const isMultiSprintTask = (task: JiraTask): boolean => {
+    const distinct = new Set(taskSprintEntries(task).filter(s => !EXCLUDED_SPRINT(s.name)).map(s => s.name));
+    return distinct.size > 1;
+};
+
 const EpicTimeline: React.FC<EpicTimelineProps> = ({ data, onNavigateToSprint }) => {
     const [hiddenEpicsArr, setHiddenEpicsArr] = useLocalStorage<string[]>('epic_timeline_hidden_epics', []);
     const hiddenEpics = new Set(hiddenEpicsArr);
@@ -37,18 +50,20 @@ const EpicTimeline: React.FC<EpicTimelineProps> = ({ data, onNavigateToSprint })
     const { sprints, epics, minTime, maxTime, totalSpan, epicColors, jiraBaseUrl } = useMemo(() => {
         const sprintMap = new Map<string, SprintInfo>();
         for (const task of data) {
-            if (EXCLUDED_SPRINT(task.Sprint) || !task.SprintStart || !task.SprintEnd) continue;
-            const start = new Date(task.SprintStart).getTime();
-            const end = new Date(task.SprintEnd).getTime();
-            const existing = sprintMap.get(task.Sprint);
-            if (!existing) {
-                sprintMap.set(task.Sprint, { name: task.Sprint, start, end });
-            } else {
-                sprintMap.set(task.Sprint, {
-                    name: task.Sprint,
-                    start: Math.min(existing.start, start),
-                    end: Math.max(existing.end, end),
-                });
+            for (const entry of taskSprintEntries(task)) {
+                if (EXCLUDED_SPRINT(entry.name) || !entry.startDate || !entry.endDate) continue;
+                const start = new Date(entry.startDate).getTime();
+                const end = new Date(entry.endDate).getTime();
+                const existing = sprintMap.get(entry.name);
+                if (!existing) {
+                    sprintMap.set(entry.name, { name: entry.name, start, end });
+                } else {
+                    sprintMap.set(entry.name, {
+                        name: entry.name,
+                        start: Math.min(existing.start, start),
+                        end: Math.max(existing.end, end),
+                    });
+                }
             }
         }
 
@@ -59,7 +74,8 @@ const EpicTimeline: React.FC<EpicTimelineProps> = ({ data, onNavigateToSprint })
 
         const epicMap = new Map<string, JiraTask[]>();
         for (const task of data) {
-            if (EXCLUDED_SPRINT(task.Sprint)) continue;
+            const hasAnySprint = taskSprintEntries(task).some(s => !EXCLUDED_SPRINT(s.name));
+            if (!hasAnySprint) continue;
             const key = task.Epic || '(No Epic)';
             if (!epicMap.has(key)) epicMap.set(key, []);
             epicMap.get(key)!.push(task);
@@ -263,9 +279,13 @@ const EpicTimeline: React.FC<EpicTimelineProps> = ({ data, onNavigateToSprint })
                                     const color = epicColors.get(epic.name)!;
                                     const tasksBySprint = new Map<string, JiraTask[]>();
                                     for (const task of epic.tasks) {
-                                        if (EXCLUDED_SPRINT(task.Sprint)) continue;
-                                        if (!tasksBySprint.has(task.Sprint)) tasksBySprint.set(task.Sprint, []);
-                                        tasksBySprint.get(task.Sprint)!.push(task);
+                                        const seen = new Set<string>();
+                                        for (const entry of taskSprintEntries(task)) {
+                                            if (EXCLUDED_SPRINT(entry.name) || seen.has(entry.name)) continue;
+                                            seen.add(entry.name);
+                                            if (!tasksBySprint.has(entry.name)) tasksBySprint.set(entry.name, []);
+                                            tasksBySprint.get(entry.name)!.push(task);
+                                        }
                                     }
 
                                     return (
@@ -278,14 +298,23 @@ const EpicTimeline: React.FC<EpicTimelineProps> = ({ data, onNavigateToSprint })
                                                     const width = sprintWidth(sprint);
                                                     const points = tasks.reduce((s, t) => s + (t.StoryPoints || 0), 0);
                                                     const doneCount = tasks.filter(t => t.StatusCategory === 'Done').length;
+                                                    const multiCount = tasks.filter(isMultiSprintTask).length;
                                                     const isActive = activeCell?.epic === epic.name && activeCell.sprint.name === sprint.name;
                                                     return (
                                                         <div
                                                             key={sprint.name}
                                                             onClick={() => setActiveCell({ epic: epic.name, sprint, tasks })}
                                                             style={{ position: 'absolute', left, width, height: rowHeight, background: isActive ? `${color}55` : `${color}2a`, borderLeft: `3px solid ${color}`, borderRight: `1px solid ${color}44`, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'background 0.15s', overflow: 'hidden', boxSizing: 'border-box', borderRadius: '0 3px 3px 0' }}
-                                                            title={`${epic.name} · ${sprint.name}\n${tasks.length} tasks (${doneCount} done) · ${points} pts`}
+                                                            title={`${epic.name} · ${sprint.name}\n${tasks.length} tasks (${doneCount} done) · ${points} pts${multiCount > 0 ? `\n${multiCount} task${multiCount === 1 ? '' : 's'} span multiple sprints` : ''}`}
                                                         >
+                                                            {multiCount > 0 && (
+                                                                <span
+                                                                    style={{ position: 'absolute', top: 2, right: 3, display: 'inline-flex', color: '#ef4444' }}
+                                                                    title={`${multiCount} task${multiCount === 1 ? '' : 's'} span${multiCount === 1 ? 's' : ''} multiple sprints`}
+                                                                >
+                                                                    <Info size={11} strokeWidth={2.5} />
+                                                                </span>
+                                                            )}
                                                             <span style={{ fontSize: '0.65rem', color: 'white', fontWeight: 700, lineHeight: 1.2 }}>{tasks.length}t</span>
                                                             <span style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.6)', lineHeight: 1.2 }}>{points}pts</span>
                                                         </div>
@@ -301,7 +330,9 @@ const EpicTimeline: React.FC<EpicTimelineProps> = ({ data, onNavigateToSprint })
                             <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
                                 <div style={{ width: chartWidth, height: rowHeight, position: 'relative' }}>
                                     {sprints.map(sprint => {
-                                        const sprintTasks = data.filter(t => t.Sprint === sprint.name);
+                                        const sprintTasks = data.filter(t =>
+                                            taskSprintEntries(t).some(s => s.name === sprint.name)
+                                        );
                                         const pts = sprintTasks.reduce((s, t) => s + (t.StoryPoints || 0), 0);
                                         return (
                                             <div key={sprint.name} style={{ position: 'absolute', left: sprintLeft(sprint), width: sprintWidth(sprint), height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderLeft: '1px solid rgba(255,255,255,0.06)' }}>
@@ -455,14 +486,24 @@ const EpicTimeline: React.FC<EpicTimelineProps> = ({ data, onNavigateToSprint })
                                             style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}
                                         >
                                             <td style={{ padding: '0.5rem', whiteSpace: 'nowrap' }}>
-                                                <a
-                                                    href={task.Link}
-                                                    target="_blank"
-                                                    rel="noreferrer"
-                                                    style={{ color: 'var(--primary)', textDecoration: 'none', fontWeight: 600 }}
-                                                >
-                                                    {task.ID}
-                                                </a>
+                                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                                                    <a
+                                                        href={task.Link}
+                                                        target="_blank"
+                                                        rel="noreferrer"
+                                                        style={{ color: 'var(--primary)', textDecoration: 'none', fontWeight: 600 }}
+                                                    >
+                                                        {task.ID}
+                                                    </a>
+                                                    {isMultiSprintTask(task) && (
+                                                        <span
+                                                            title={`${MULTI_SPRINT_TOOLTIP}\nSprints: ${taskSprintEntries(task).filter(s => !EXCLUDED_SPRINT(s.name)).map(s => s.name).join(', ')}`}
+                                                            style={{ display: 'inline-flex', color: '#ef4444', cursor: 'help' }}
+                                                        >
+                                                            <Info size={13} strokeWidth={2.5} />
+                                                        </span>
+                                                    )}
+                                                </span>
                                             </td>
                                             <td style={{ padding: '0.5rem', color: 'white', maxWidth: 280 }}>
                                                 <span style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>

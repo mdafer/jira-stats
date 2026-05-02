@@ -1,3 +1,10 @@
+export interface SprintInfo {
+    name: string;
+    startDate?: string;
+    endDate?: string;
+    state?: string;
+}
+
 export interface JiraTask {
     ID: string;
     Link: string;
@@ -10,6 +17,7 @@ export interface JiraTask {
     Sprint: string;
     SprintStart?: string;
     SprintEnd?: string;
+    Sprints?: SprintInfo[];
     TimeSpent: number;
     StagesDurations: Record<string, number>;
     Stages: {

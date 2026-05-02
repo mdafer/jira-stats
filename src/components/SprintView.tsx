@@ -21,6 +21,14 @@ const formatSprintRange = (sStart: number, sEnd: number) =>
     (sStart !== Infinity && sEnd !== -Infinity) ? `${formatDate(sStart)} – ${formatDate(sEnd)}` : '–';
 
 const IDLE_DAYS_TOOLTIP = "Idle days are work days (from Settings) on which the developer had no task in 'In Progress' or 'In Development'. Days off are excluded from the count.";
+const MULTI_SPRINT_TOOLTIP = 'This task spans multiple sprints — it was not completed by the end of its original sprint and was carried over.';
+
+const taskSprintNames = (task: JiraTask): string[] => {
+    if (task.Sprints && task.Sprints.length > 0) return Array.from(new Set(task.Sprints.map(s => s.name).filter(Boolean)));
+    return task.Sprint ? [task.Sprint] : [];
+};
+const taskInSprint = (task: JiraTask, sprintName: string): boolean => taskSprintNames(task).includes(sprintName);
+const isMultiSprintTask = (task: JiraTask): boolean => taskSprintNames(task).length > 1;
 
 const SprintView: React.FC<SprintViewProps> = ({ data, metrics, initialSprint, initialUser, workDays, onSprintSelect, onUserSelect }) => {
     const [selectedSprint, setSelectedSprint] = useState<SelectedSprintInfo | null>(null);
@@ -37,7 +45,7 @@ const SprintView: React.FC<SprintViewProps> = ({ data, metrics, initialSprint, i
             if (sprintStats) {
                 setSelectedSprint({
                     name: sprintStats.name,
-                    tasks: data.filter(t => t.Sprint === sprintStats.name)
+                    tasks: data.filter(t => taskInSprint(t, sprintStats.name))
                 });
                 // Only set the filter if it's actually provided
                 if (initialUser) {
@@ -54,15 +62,21 @@ const SprintView: React.FC<SprintViewProps> = ({ data, metrics, initialSprint, i
 
     // Pre-compute sprint list rows for sorting
     const sprintRows = useMemo(() => metrics.sprintStats.map(sprint => {
-        const sprintTasks = data.filter(t => t.Sprint === sprint.name);
+        const sprintTasks = data.filter(t => taskInSprint(t, sprint.name));
         const developers = Array.from(new Set(sprintTasks.map(t => t.AssigneeName).filter(Boolean)));
 
         let sStart = Infinity;
         let sEnd = -Infinity;
-        const sprintDatesTask = sprintTasks.find(t => t.SprintStart && (t.SprintEnd || t.Sprint));
-        if (sprintDatesTask && sprintDatesTask.SprintStart) {
-            sStart = new Date(sprintDatesTask.SprintStart).getTime();
-            sEnd = new Date(sprintDatesTask.SprintEnd || new Date()).getTime();
+        const datedEntry = sprintTasks
+            .flatMap(t => t.Sprints ?? [])
+            .find(s => s.name === sprint.name && s.startDate);
+        const fallbackTask = sprintTasks.find(t => t.Sprint === sprint.name && t.SprintStart);
+        if (datedEntry && datedEntry.startDate) {
+            sStart = new Date(datedEntry.startDate).getTime();
+            sEnd = new Date(datedEntry.endDate || new Date()).getTime();
+        } else if (fallbackTask && fallbackTask.SprintStart) {
+            sStart = new Date(fallbackTask.SprintStart).getTime();
+            sEnd = new Date(fallbackTask.SprintEnd || new Date()).getTime();
         } else {
             sprintTasks.forEach(t => {
                 t.Stages.forEach(s => {
@@ -122,13 +136,19 @@ const SprintView: React.FC<SprintViewProps> = ({ data, metrics, initialSprint, i
             return { sStart: Infinity, sEnd: -Infinity, devData: {} as Record<string, { name: string, intervals: { start: number, end: number }[], taskIntervals: Record<string, { start: number, end: number }[]>, tasks: Set<string> }>, tasksExceedingTime: [] as typeof selectedSprint extends null ? never[] : JiraTask[], displayTasks: [] as JiraTask[], filteredDevData: {} as Record<string, { name: string, intervals: { start: number, end: number }[], taskIntervals: Record<string, { start: number, end: number }[]>, tasks: Set<string> }>, displayDevData: {} as Record<string, { name: string, intervals: { start: number, end: number }[], taskIntervals: Record<string, { start: number, end: number }[]>, tasks: Set<string> }>, selectedDevDataFromDisplay: null as null | { name: string, intervals: { start: number, end: number }[], taskIntervals: Record<string, { start: number, end: number }[]>, tasks: Set<string> }, exceedingTaskCount: 0 };
         }
 
-        const sprintDates = selectedSprint.tasks.find(t => t.SprintStart && (t.SprintEnd || t.Sprint));
         let sStart = Infinity;
         let sEnd = -Infinity;
+        const datedEntry = selectedSprint.tasks
+            .flatMap(t => t.Sprints ?? [])
+            .find(s => s.name === selectedSprint.name && s.startDate);
+        const fallbackTask = selectedSprint.tasks.find(t => t.Sprint === selectedSprint.name && t.SprintStart);
 
-        if (sprintDates && sprintDates.SprintStart) {
-            sStart = new Date(sprintDates.SprintStart).getTime();
-            sEnd = new Date(sprintDates.SprintEnd || new Date()).getTime();
+        if (datedEntry && datedEntry.startDate) {
+            sStart = new Date(datedEntry.startDate).getTime();
+            sEnd = new Date(datedEntry.endDate || new Date()).getTime();
+        } else if (fallbackTask && fallbackTask.SprintStart) {
+            sStart = new Date(fallbackTask.SprintStart).getTime();
+            sEnd = new Date(fallbackTask.SprintEnd || new Date()).getTime();
         } else {
             selectedSprint.tasks.forEach(t => {
                 t.Stages.forEach(s => {
@@ -510,16 +530,26 @@ const SprintView: React.FC<SprintViewProps> = ({ data, metrics, initialSprint, i
                                         {sortedDevTaskRows.map((row) => (
                                             <tr key={row.taskId}>
                                                 <td style={{ fontSize: '0.8rem' }}>
-                                                    <a
-                                                        href={row.task?.Link}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        style={{ fontWeight: 600, color: 'var(--primary)', textDecoration: 'none', display: 'block', marginBottom: '4px' }}
-                                                        onMouseEnter={(e) => e.currentTarget.style.textDecoration = 'underline'}
-                                                        onMouseLeave={(e) => e.currentTarget.style.textDecoration = 'none'}
-                                                    >
-                                                        {row.taskId}
-                                                    </a>
+                                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', marginBottom: '4px' }}>
+                                                        <a
+                                                            href={row.task?.Link}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            style={{ fontWeight: 600, color: 'var(--primary)', textDecoration: 'none' }}
+                                                            onMouseEnter={(e) => e.currentTarget.style.textDecoration = 'underline'}
+                                                            onMouseLeave={(e) => e.currentTarget.style.textDecoration = 'none'}
+                                                        >
+                                                            {row.taskId}
+                                                        </a>
+                                                        {row.task && isMultiSprintTask(row.task) && (
+                                                            <span
+                                                                title={`${MULTI_SPRINT_TOOLTIP}\nSprints: ${taskSprintNames(row.task).join(', ')}`}
+                                                                style={{ display: 'inline-flex', color: '#ef4444', cursor: 'help' }}
+                                                            >
+                                                                <Info size={13} strokeWidth={2.5} />
+                                                            </span>
+                                                        )}
+                                                    </span>
                                                     <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{row.task?.Name}</div>
                                                 </td>
                                                 <td style={{ fontSize: '0.75rem', color: 'var(--text-muted)', maxWidth: '150px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={row.epic || '–'}>{row.epic || '–'}</td>
