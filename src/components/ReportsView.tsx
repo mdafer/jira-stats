@@ -16,6 +16,8 @@ import {
 } from 'docx';
 import { saveAs } from 'file-saver';
 
+const REPORT_FONT = 'Calibri';
+
 interface ReportsViewProps {
     data: JiraTask[];
     workDays: number[];
@@ -183,13 +185,13 @@ const ReportsView: React.FC<ReportsViewProps> = ({ data, workDays }) => {
         try {
             const headerCell = (text: string) =>
                 new TableCell({
-                    children: [new Paragraph({ children: [new TextRun({ text, bold: true, size: 20 })] })],
+                    children: [new Paragraph({ children: [new TextRun({ text, bold: true, size: 20, font: REPORT_FONT })] })],
                     shading: { fill: 'E2E8F0' },
                 });
 
             const dataCell = (text: string) =>
                 new TableCell({
-                    children: [new Paragraph({ children: [new TextRun({ text, size: 20 })] })],
+                    children: [new Paragraph({ children: [new TextRun({ text, size: 20, font: REPORT_FONT })] })],
                 });
 
             const borders = {
@@ -222,30 +224,33 @@ const ReportsView: React.FC<ReportsViewProps> = ({ data, workDays }) => {
             const docChildren: (Paragraph | Table)[] = [];
 
             docChildren.push(
-                new Paragraph({ text: 'Developer Activity Report', heading: HeadingLevel.HEADING_1 }),
+                new Paragraph({
+                    heading: HeadingLevel.HEADING_1,
+                    children: [new TextRun({ text: 'Developer Activity Report', font: REPORT_FONT })],
+                }),
                 new Paragraph({
                     children: [
-                        new TextRun({ text: 'Range: ', bold: true }),
-                        new TextRun({ text: `${formatDateShort(fromMs)} – ${formatDateShort(toMs)}` }),
+                        new TextRun({ text: 'Range: ', bold: true, font: REPORT_FONT }),
+                        new TextRun({ text: `${formatDateShort(fromMs)} – ${formatDateShort(toMs)}`, font: REPORT_FONT }),
                     ],
                 }),
                 new Paragraph({
                     children: [
-                        new TextRun({ text: 'Activity counted: ', bold: true }),
-                        new TextRun({ text: 'In Progress / In Development (Code Review and Ready for QA excluded).' }),
+                        new TextRun({ text: 'Activity counted: ', bold: true, font: REPORT_FONT }),
+                        new TextRun({ text: 'In Progress / In Development (Code Review and Ready for QA excluded).', font: REPORT_FONT }),
                     ],
                 }),
                 new Paragraph({
                     children: [
-                        new TextRun({ text: 'Developers: ', bold: true }),
-                        new TextRun({ text: `${sections.length}` }),
-                        new TextRun({ text: '   ·   ' }),
-                        new TextRun({ text: 'Tasks: ', bold: true }),
-                        new TextRun({ text: `${totalTasks}` }),
+                        new TextRun({ text: 'Developers: ', bold: true, font: REPORT_FONT }),
+                        new TextRun({ text: `${sections.length}`, font: REPORT_FONT }),
+                        new TextRun({ text: '   ·   ', font: REPORT_FONT }),
+                        new TextRun({ text: 'Tasks: ', bold: true, font: REPORT_FONT }),
+                        new TextRun({ text: `${totalTasks}`, font: REPORT_FONT }),
                         ...(includeSubtasks ? [
-                            new TextRun({ text: '   ·   ' }),
-                            new TextRun({ text: 'Subtasks: ', bold: true }),
-                            new TextRun({ text: `${totalSubtasks}` }),
+                            new TextRun({ text: '   ·   ', font: REPORT_FONT }),
+                            new TextRun({ text: 'Subtasks: ', bold: true, font: REPORT_FONT }),
+                            new TextRun({ text: `${totalSubtasks}`, font: REPORT_FONT }),
                         ] : []),
                     ],
                 }),
@@ -262,16 +267,16 @@ const ReportsView: React.FC<ReportsViewProps> = ({ data, workDays }) => {
 
                 docChildren.push(
                     new Paragraph({
-                        text: `${section.dev} — ${headerBits}`,
                         heading: HeadingLevel.HEADING_2,
+                        children: [new TextRun({ text: `${section.dev} — ${headerBits}`, font: REPORT_FONT })],
                     }),
                 );
 
                 if (taskCount > 0) {
                     docChildren.push(
                         new Paragraph({
-                            children: [new TextRun({ text: 'Tasks', bold: true })],
                             heading: HeadingLevel.HEADING_3,
+                            children: [new TextRun({ text: 'Tasks', bold: true, font: REPORT_FONT })],
                         }),
                         buildTable(section.tasks, 'task'),
                         new Paragraph({ text: '' }),
@@ -281,8 +286,8 @@ const ReportsView: React.FC<ReportsViewProps> = ({ data, workDays }) => {
                 if (includeSubtasks && subCount > 0) {
                     docChildren.push(
                         new Paragraph({
-                            children: [new TextRun({ text: 'Subtasks', bold: true })],
                             heading: HeadingLevel.HEADING_3,
+                            children: [new TextRun({ text: 'Subtasks', bold: true, font: REPORT_FONT })],
                         }),
                         buildTable(section.subtasks, 'subtask'),
                         new Paragraph({ text: '' }),
@@ -293,6 +298,11 @@ const ReportsView: React.FC<ReportsViewProps> = ({ data, workDays }) => {
             const doc = new Document({
                 creator: 'Jira Stats',
                 title: 'Developer Activity Report',
+                styles: {
+                    default: {
+                        document: { run: { font: REPORT_FONT } },
+                    },
+                },
                 sections: [{ children: docChildren as any }],
             });
 
